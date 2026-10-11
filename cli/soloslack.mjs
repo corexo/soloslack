@@ -15,6 +15,18 @@ Setup:
   soloslack login <api-url> <token>     Save credentials (e.g. http://localhost:5005/api sls_...)
   soloslack whoami                      Show the agent behind the token
 
+Boards:
+  soloslack boards [--json]             Boards with their columns, workspace and repo
+
+Create tickets:
+  soloslack create --board <name|id> --title "..." [-d text | -f desc.md]
+                   [--column <name>] [--priority low|medium|high] [--label x]...
+                   [--check "step"]... [--assign <agent|me>] [--branch <name>] [--due YYYY-MM-DD]
+  soloslack create --from tasks.json [--board <name|id>]
+                                        Several at once: JSON array of
+                                        { title, description, board, column, priority, labels[],
+                                          checklist[], assignee, branch, dueDate } ("-" = stdin)
+
 Tickets:
   soloslack tasks [--all] [--column <name>] [--json]
                                         List tickets assigned to you (--all: every agent)
@@ -118,7 +130,7 @@ function printTasks(tasks) {
 function printTask(t, baseUrl) {
     const origin = baseUrl.replace(/\/api$/, '');
     console.log(`# ${t.title}`);
-    console.log(`id: ${t.id} | board: ${t.board?.name} | column: ${t.column?.name} | priority: ${t.priority} | assignee: ${t.assignee || '-'}`);
+    console.log(`id: ${t.id} | board: ${t.board?.name} | column: ${t.column?.name} | priority: ${t.priority} | assignee: ${t.assignee || '-'}${t.createdBy ? ` | created by: ${t.createdBy}` : ''}`);
     if (t.repo || t.branch) console.log(`repo: ${t.repo || '-'} | branch: ${t.branch || '-'}`);
     if (t.dueDate) console.log(`due: ${t.dueDate.slice(0, 10)}`);
     if (t.labels.length) console.log(`labels: ${t.labels.join(', ')}`);
@@ -167,6 +179,51 @@ const commands = {
         if (flags.column) qs.set('column', flags.column);
         const tasks = await api('GET', `/agent/tasks?${qs}`);
         flags.json ? console.log(JSON.stringify(tasks, null, 2)) : printTasks(tasks);
+    },
+
+    async boards(argv) {
+        const { flags } = parseArgs(argv, { bool: ['json'] });
+        const boards = await api('GET', '/agent/boards');
+        if (flags.json) return console.log(JSON.stringify(boards, null, 2));
+        if (!boards.length) return console.log('No boards.');
+        for (const b of boards) {
+            const meta = [b.workspace && `workspace: ${b.workspace}`, b.repo && `repo: ${b.repo}`, `${b.cards} tickets`].filter(Boolean).join(' | ');
+            console.log(`${b.name}  (${b.id})\n  ${meta}\n  columns: ${b.columns.map(c => c.name).join(' → ')}`);
+        }
+    },
+
+    async create(argv) {
+        const { flags } = parseArgs(argv, {
+            multi: ['label', 'check'],
+            alias: { '-d': 'description', '-f': 'file', '-t': 'title', '-b': 'board' },
+        });
+        let body;
+        if (flags.from) {
+            const raw = flags.from === '-' ? readStdin() : fs.readFileSync(flags.from, 'utf8');
+            let tasks;
+            try { tasks = JSON.parse(raw); } catch (err) { fail(`Invalid JSON in ${flags.from}: ${err.message}`); }
+            body = { board: flags.board, tasks: Array.isArray(tasks) ? tasks : tasks.tasks || [tasks] };
+        } else {
+            if (!flags.title) fail('Usage: soloslack create --board <name> --title "..." [options]  (see soloslack help)');
+            let description = flags.description || '';
+            if (flags.file) description = [description, fs.readFileSync(flags.file === '-' ? 0 : flags.file, 'utf8')].filter(Boolean).join('\n\n');
+            body = {
+                board: flags.board,
+                column: flags.column,
+                title: flags.title,
+                description,
+                priority: flags.priority,
+                labels: flags.label,
+                checklist: flags.check,
+                assignee: flags.assign,
+                branch: flags.branch,
+                dueDate: flags.due,
+            };
+        }
+        const created = await api('POST', '/agent/tasks', { json: body });
+        for (const t of created) {
+            console.log(`Created ${t.id}  [${t.board.name} → ${t.column.name}]  ${t.title}${t.assignee ? `  (assigned: ${t.assignee})` : ''}`);
+        }
     },
 
     async show(argv) {

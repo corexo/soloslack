@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
-import { Network, Eye, MessageSquare, ArrowRightLeft, List, Radio, Bot, Paperclip } from 'lucide-react';
+import { Network, Eye, MessageSquare, ArrowRightLeft, List, Radio, Bot, Paperclip, PlusCircle } from 'lucide-react';
 import { agentsApi, subscribeAgentActivity } from '@/lib/api/agentsApi';
 import AgentNetwork, { agentStatus } from '@/components/agents/AgentNetwork';
 import { timeAgo } from '@/lib/utils/formatDate';
@@ -16,6 +16,7 @@ const ACTIONS = {
     comment: { icon: MessageSquare, label: 'commented on', color: '#a78bfa' },
     update: { icon: ArrowRightLeft, label: 'updated', color: '#fbbf24' },
     attach: { icon: Paperclip, label: 'attached files to', color: '#34d399' },
+    create: { icon: PlusCircle, label: 'created', color: '#f472b6' },
     list: { icon: List, label: 'listed tickets', color: '#64748b' },
     ping: { icon: Radio, label: 'connected', color: '#64748b' },
 };

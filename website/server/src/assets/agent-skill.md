@@ -1,6 +1,6 @@
 ---
 name: soloslack
-description: Work on tickets from the SoloSlack kanban board — find tickets assigned to you, report progress as comments, attach screenshots and markdown reports, link git branches and move tickets through the columns. Use whenever the user mentions SoloSlack, "my tickets", "the board", a ticket id, or asks you to pick up / report on assigned work.
+description: Work on tickets from the SoloSlack kanban board — create and plan tickets, find tickets assigned to you, report progress as comments, attach screenshots and markdown reports, link git branches and move tickets through the columns. Use whenever the user mentions SoloSlack, "my tickets", "the board", a ticket id, or asks you to pick up / report on assigned work.
 ---
 
 # SoloSlack — working on tickets as an AI agent
@@ -54,10 +54,34 @@ Never print the token in comments, commits or logs. With several agents on one m
    report/screenshots, then `soloslack move <id> Done` — or to a review column if the board has one.
    Hand over with `soloslack assign <id> <other-agent>` when the ticket says so.
 
+## Creating tickets
+
+When the user asks you to plan or break down work ("leg Tickets an", "create tasks for …"):
+
+1. `soloslack boards` — pick the right board (ask if unclear) and note the column names.
+2. Check for duplicates: `soloslack tasks --all`.
+3. Write each ticket so another agent could do it without asking:
+   description with **Goal**, **Context** and **Acceptance Criteria** (markdown), a checklist of 3–8 concrete
+   steps, a priority, and 1–3 labels (area/type, e.g. `frontend`, `bug`).
+   Keep tickets small (a few hours of work each); split bigger work.
+4. Create them in one go with a JSON file (all-or-nothing validation):
+   ```bash
+   cat > /tmp/tasks.json <<'JSON'
+   [{"title": "…", "description": "## Goal\n…\n\n## Acceptance Criteria\n- …",
+     "priority": "high", "labels": ["backend"], "checklist": ["…", "…"], "assignee": null}]
+   JSON
+   soloslack create --from /tmp/tasks.json --board "<board>"
+   ```
+   Single ticket: `soloslack create --board "<board>" --title "…" -f desc.md --check "…" --label …`.
+5. Only assign tickets (`"assignee": "<agent>"` or `"me"`) or set due dates when the user asked for it.
+6. Report the created ticket ids and titles back to the user.
+
 ## Commands
 
 | Goal | Command |
 |---|---|
+| Boards & columns | `soloslack boards` |
+| Create ticket(s) | `soloslack create --board "<board>" --title "…" [-f desc.md] [--check …] [--label …]` · `--from tasks.json` |
 | My tickets | `soloslack tasks` (`--all` every agent, `--column <name>`, `--json`) |
 | Ticket details | `soloslack show <id>` (`--json` for machine-readable) |
 | Comment | `soloslack comment <id> "text"` |
@@ -83,6 +107,9 @@ Never print the token in comments, commits or logs. With several agents on one m
 All requests need `Authorization: Bearer <token>`.
 
 ```bash
+curl -s -H "Authorization: Bearer $TOKEN" {{API_URL}}/agent/boards
+curl -s -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+     -d '{"board":"<board>","tasks":[{"title":"…","description":"…","checklist":["…"]}]}' {{API_URL}}/agent/tasks
 curl -s -H "Authorization: Bearer $TOKEN" {{API_URL}}/agent/tasks
 curl -s -H "Authorization: Bearer $TOKEN" {{API_URL}}/agent/tasks/<id>
 curl -s -H "Authorization: Bearer $TOKEN" -F body="Progress update" -F files=@shot.png {{API_URL}}/agent/tasks/<id>/comments
@@ -93,7 +120,7 @@ curl -s -H "Authorization: Bearer $TOKEN" -F files=@spec.md {{API_URL}}/agent/ta
 
 ## Rules
 
-- Only change tickets you were asked to work on or that are assigned to you.
+- Only change tickets you were asked to work on or that are assigned to you; create tickets only when asked.
 - Don't delete or rewrite the user's comments; add new ones.
 - Don't move tickets to Done without verifying the acceptance criteria.
 - Every API access is visible to the user in the Agent Network view — that's expected, not a problem.

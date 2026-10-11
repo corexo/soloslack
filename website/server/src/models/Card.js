@@ -42,6 +42,11 @@ const cardSchema = new mongoose.Schema(
             ref: 'Note',
             default: null,
         },
+        // Agent that created the ticket via the agent API (null = created in the UI)
+        createdBy: {
+            type: String,
+            default: null,
+        },
         // Name of the AI agent this ticket is assigned to (see Agent model)
         assignee: {
             type: String,

@@ -4,6 +4,7 @@ const Column = require('../models/Column');
 const Board = require('../models/Board');
 const Comment = require('../models/Comment');
 const Agent = require('../models/Agent');
+const Workspace = require('../models/Workspace');
 const { checkWipLimit } = require('./cards.controller');
 const { createCommentWithFiles, createCardAttachments, getCardAttachments, removeFiles, serializeComment } = require('../utils/attachments');
 
@@ -32,11 +33,162 @@ const toTask = (card, board, column) => ({
     dueDate: card.dueDate,
     labels: (card.labels || []).map(l => l.text),
     attachmentCount: card.attachmentCount || 0,
+    createdBy: card.createdBy || null,
     checklist: (card.checklist || []).map(i => ({ text: i.text, completed: i.completed })),
     board: board ? { id: board._id, name: board.name } : null,
     column: column ? { id: column._id, name: column.name } : null,
     updatedAt: card.updatedAt,
 });
+
+const badRequest = (message) => Object.assign(new Error(message), { statusCode: 400 });
+
+const LABEL_COLORS = ['blue', 'purple', 'green', 'amber', 'orange', 'red'];
+const PRIORITIES = ['low', 'medium', 'high'];
+
+// @desc    Boards with their columns — where agents can create tickets
+// @route   GET /api/agent/boards
+exports.getBoards = async (req, res, next) => {
+    try {
+        const boards = await Board.find({ isArchived: false }).sort({ order: 1, createdAt: -1 }).lean();
+        const [columns, workspaces, counts] = await Promise.all([
+            Column.find({ boardId: { $in: boards.map(b => b._id) } }).sort({ order: 1 }).lean(),
+            Workspace.find({ _id: { $in: boards.map(b => b.workspaceId).filter(Boolean) } }).select('name').lean(),
+            Card.aggregate([
+                { $match: { boardId: { $in: boards.map(b => b._id) }, isArchived: false } },
+                { $group: { _id: '$boardId', count: { $sum: 1 } } },
+            ]),
+        ]);
+        const wsName = new Map(workspaces.map(w => [String(w._id), w.name]));
+        const countBy = new Map(counts.map(c => [String(c._id), c.count]));
+
+        res.status(200).json({
+            success: true,
+            data: boards.map(b => ({
+                id: b._id,
+                name: b.name,
+                description: b.description,
+                workspace: b.workspaceId ? wsName.get(String(b.workspaceId)) || null : null,
+                repo: b.gitRepo || null,
+                cards: countBy.get(String(b._id)) || 0,
+                columns: columns.filter(c => String(c.boardId) === String(b._id)).map(c => ({ id: c._id, name: c.name, wipLimit: c.wipLimit })),
+            })),
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// Turns one agent task spec into Card fields; throws 400 with a readable message
+async function buildCard(spec, { agentName, boards, columnsByBoard, agentNames, defaultBoard }) {
+    if (!spec || typeof spec !== 'object') throw badRequest('Task must be an object');
+    const title = String(spec.title || '').trim();
+    if (!title) throw badRequest('title is required');
+    if (title.length > 200) throw badRequest(`title too long (${title.length} > 200)`);
+
+    const boardRef = spec.board ?? defaultBoard;
+    let board;
+    if (boardRef) {
+        board = boards.find(b => String(b._id) === String(boardRef))
+            || boards.find(b => b.name.toLowerCase() === String(boardRef).toLowerCase());
+        if (!board) throw badRequest(`Board "${boardRef}" not found. Available: ${boards.map(b => b.name).join(', ')}`);
+    } else if (boards.length === 1) {
+        board = boards[0];
+    } else {
+        throw badRequest(`board is required. Available: ${boards.map(b => b.name).join(', ')}`);
+    }
+
+    const columns = columnsByBoard.get(String(board._id)) || [];
+    if (!columns.length) throw badRequest(`Board "${board.name}" has no columns`);
+    const column = spec.column
+        ? columns.find(c => String(c._id) === String(spec.column)) || columns.find(c => c.name.toLowerCase() === String(spec.column).toLowerCase())
+        : columns[0];
+    if (!column) throw badRequest(`Column "${spec.column}" not found on "${board.name}". Available: ${columns.map(c => c.name).join(', ')}`);
+
+    const priority = spec.priority ? String(spec.priority).toLowerCase() : 'medium';
+    if (!PRIORITIES.includes(priority)) throw badRequest(`priority must be one of ${PRIORITIES.join(', ')}`);
+
+    let assignee = spec.assignee ? String(spec.assignee).toLowerCase() : null;
+    if (assignee === 'me') assignee = agentName;
+    if (assignee && !agentNames.has(assignee)) throw badRequest(`Agent "${spec.assignee}" does not exist`);
+
+    const labels = (Array.isArray(spec.labels) ? spec.labels : []).slice(0, 6).map((l, i) => {
+        const text = String(typeof l === 'string' ? l : l?.text || '').trim().slice(0, 30);
+        const color = LABEL_COLORS.includes(l?.color) ? l.color : LABEL_COLORS[i % LABEL_COLORS.length];
+        return { text, color };
+    }).filter(l => l.text);
+
+    const checklist = (Array.isArray(spec.checklist) ? spec.checklist : []).map(i => ({
+        text: String(typeof i === 'string' ? i : i?.text || '').trim().slice(0, 200),
+        completed: Boolean(i?.completed),
+    })).filter(i => i.text);
+
+    let dueDate = null;
+    if (spec.dueDate || spec.due) {
+        dueDate = new Date(spec.dueDate || spec.due);
+        if (Number.isNaN(dueDate.getTime())) throw badRequest(`Invalid due date "${spec.dueDate || spec.due}"`);
+    }
+
+    return {
+        board,
+        column,
+        fields: {
+            boardId: board._id,
+            columnId: column._id,
+            title,
+            description: String(spec.description || '').slice(0, 20000),
+            priority,
+            labels,
+            checklist,
+            assignee,
+            branch: spec.branch ? String(spec.branch).trim() : null,
+            dueDate,
+            createdBy: agentName,
+        },
+    };
+}
+
+// @desc    Create one ticket ({...}) or several ({ tasks: [...] } or [...]); all-or-nothing validation
+// @route   POST /api/agent/tasks
+exports.createTasks = async (req, res, next) => {
+    try {
+        const body = req.body || {};
+        const specs = Array.isArray(body) ? body : Array.isArray(body.tasks) ? body.tasks : [body];
+        if (!specs.length) throw badRequest('No tasks given');
+        if (specs.length > 50) throw badRequest('At most 50 tasks per request');
+
+        const boards = await Board.find({ isArchived: false }).lean();
+        const columns = await Column.find({ boardId: { $in: boards.map(b => b._id) } }).sort({ order: 1 }).lean();
+        const columnsByBoard = new Map();
+        columns.forEach(c => columnsByBoard.set(String(c.boardId), [...(columnsByBoard.get(String(c.boardId)) || []), c]));
+        const agentNames = new Set((await Agent.find().select('name').lean()).map(a => a.name));
+        const ctx = { agentName: req.agent.name, boards, columnsByBoard, agentNames, defaultBoard: body.board };
+
+        // Validate everything before creating anything
+        const built = [];
+        for (const [i, spec] of specs.entries()) {
+            try {
+                built.push(await buildCard(spec, ctx));
+            } catch (error) {
+                if (specs.length > 1) error.message = `Task ${i + 1}${spec?.title ? ` ("${spec.title}")` : ''}: ${error.message}`;
+                throw error;
+            }
+        }
+
+        const created = [];
+        for (const { board, column, fields } of built) {
+            await checkWipLimit(column._id);
+            const order = await Card.countDocuments({ columnId: column._id, isArchived: false });
+            const card = await Card.create({ ...fields, order });
+            created.push(toTask(card.toObject(), board, column));
+        }
+
+        // One activity event per created ticket (see trackAgentActivity)
+        res.locals.activity = created.map(t => ({ cardId: t.id, cardTitle: t.title, detail: `in ${t.board.name} → ${t.column.name}` }));
+        res.status(201).json({ success: true, count: created.length, data: created });
+    } catch (error) {
+        next(error);
+    }
+};
 
 // @desc    Current agent
 // @route   GET /api/agent/me

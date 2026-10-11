@@ -9,6 +9,8 @@ function classify(req) {
     const path = req.path;
     if (path === '/me') return { action: 'ping' };
     if (path === '/tasks' && method === 'GET') return { action: 'list' };
+    if (path === '/tasks' && method === 'POST') return { action: 'create' };
+    if (path === '/boards' && method === 'GET') return { action: 'list' };
     const m = /^\/tasks\/([^/]+)(\/comments|\/attachments)?$/.exec(path);
     if (!m) return null;
     if (m[2] === '/comments' && method === 'POST') return { action: 'comment', cardId: m[1] };
@@ -46,6 +48,17 @@ const trackAgentActivity = (req, res, next) => {
     res.on('finish', async () => {
         try {
             if (!req.agent) return;
+            // Handlers that touch several tickets report them explicitly (e.g. bulk create)
+            if (Array.isArray(res.locals.activity)) {
+                for (const item of res.locals.activity) {
+                    const event = await AgentActivity.create({
+                        agent: req.agent.name, action: info.action, cardId: item.cardId,
+                        cardTitle: item.cardTitle, detail: item.detail || null, status: res.statusCode,
+                    });
+                    bus.emit('activity', event.toObject());
+                }
+                return;
+            }
             const cardId = info.cardId && mongoose.isValidObjectId(info.cardId) ? info.cardId : null;
             const card = cardId ? await Card.findById(cardId).select('title').lean() : null;
             const event = await AgentActivity.create({

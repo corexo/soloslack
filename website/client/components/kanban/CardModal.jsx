@@ -1037,7 +1037,12 @@ export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete, g
                         >
                             <Trash2 className="w-3.5 h-3.5" /> Delete Card
                         </button>
-                        <span className="text-[10px] text-text-muted italic">
+                        <span className="text-[10px] text-text-muted italic text-right">
+                            {card.createdBy && (
+                                <span className="not-italic text-sky-400 inline-flex items-center gap-1 mr-1.5">
+                                    <Bot className="w-3 h-3" /> created by {card.createdBy} ·
+                                </span>
+                            )}
                             Updated {timeAgo(card.updatedAt)}
                         </span>
                     </section>

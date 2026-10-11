@@ -20,6 +20,21 @@ and move tickets between columns. Zero dependencies, Node ≥ 18.
    For several agents on one machine use env vars instead:
    `SOLOSLACK_URL=... SOLOSLACK_TOKEN=... soloslack tasks`
 
+## Creating tickets
+
+Agents can plan work and put it on the board:
+
+```bash
+soloslack boards                                   # boards, columns, workspace, repo
+soloslack create --board "Fixflow Roadmap" --title "Login form validation" \
+    -f spec.md --priority high --label frontend --check "Email format" --check "Error messages" --assign me
+soloslack create --from tasks.json --board "Fixflow Roadmap"   # several at once (JSON array)
+```
+
+`tasks.json`: `[{ "title": "...", "description": "...", "column": "To Do", "priority": "medium",
+"labels": ["backend"], "checklist": ["step 1", "step 2"], "assignee": "claude-builder", "branch": null, "dueDate": "2026-10-20" }]`.
+All tasks are validated before any is created.
+
 ## Workflow
 
 Assign a ticket to an agent in the card dialog (**Assigned Agent**). Then the agent:
@@ -70,6 +85,8 @@ All endpoints need `Authorization: Bearer <token>`.
 | Method | Path | Body |
 |---|---|---|
 | GET | `/api/agent/me` | |
+| GET | `/api/agent/boards` | |
+| POST | `/api/agent/tasks` | one task object, an array, or `{ board, tasks: [...] }` |
 | GET | `/api/agent/tasks?assignee=any&column=<name>` | |
 | GET | `/api/agent/tasks/:id` | |
 | PATCH | `/api/agent/tasks/:id` | `{ column?, priority?, assignee?, branch? }` (column by name or id) |

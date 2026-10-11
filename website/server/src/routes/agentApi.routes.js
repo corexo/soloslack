@@ -10,7 +10,9 @@ router.use(agentAuth);
 router.use(trackAgentActivity);
 
 router.get('/me', agentApi.me);
+router.get('/boards', agentApi.getBoards);
 router.get('/tasks', agentApi.getTasks);
+router.post('/tasks', agentApi.createTasks);
 router.get('/tasks/:id', agentApi.getTask);
 router.patch('/tasks/:id', agentApi.updateTask);
 router.post('/tasks/:id/comments', upload.array('files', MAX_FILES), agentApi.addComment);
