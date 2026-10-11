@@ -21,19 +21,27 @@ function resolveUrl(baseUrl, path) {
     return base.endsWith(path) ? base : `${base}${path}`;
 }
 
+// Send to the backend proxy (no CORS needed) or straight to the target
+function customTarget(baseUrl, path, proxyUrl) {
+    const url = resolveUrl(baseUrl, path);
+    return proxyUrl
+        ? { url: proxyUrl, extraHeaders: { 'X-AI-Target-URL': url } }
+        : { url, extraHeaders: {} };
+}
+
 // fetch() throws a bare TypeError on connection/CORS failures — make it actionable
 async function fetchCustom(url, init) {
     try {
         return await fetch(url, init);
     } catch {
-        throw new Error(`Could not reach ${url}. Is the server running and does it allow CORS from this origin (e.g. OLLAMA_ORIGINS=*)?`);
+        throw new Error(`Could not reach ${url}. Is the server running? Direct browser calls also need CORS (e.g. OLLAMA_ORIGINS=*) — or enable "Route via backend".`);
     }
 }
 
 // ── Provider implementations ─────────────────────────────────────
 
-async function callOpenAI(apiKey, messages, { model = DEFAULT_MODELS.openai, maxTokens = 1024, temperature = 0.7, stream = false, url = OPENAI_URL, fetcher = fetch, label = 'OpenAI' } = {}) {
-    const headers = { 'Content-Type': 'application/json' };
+async function callOpenAI(apiKey, messages, { model = DEFAULT_MODELS.openai, maxTokens = 1024, temperature = 0.7, stream = false, url = OPENAI_URL, fetcher = fetch, label = 'OpenAI', extraHeaders = {} } = {}) {
+    const headers = { 'Content-Type': 'application/json', ...extraHeaders };
     // Local servers usually don't need a key
     if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
 
@@ -167,13 +175,13 @@ async function callGemini(apiKey, messages, { model = DEFAULT_MODELS.gemini, max
     };
 }
 
-async function callCustom(apiKey, messages, { baseUrl, model, ...options } = {}) {
+async function callCustom(apiKey, messages, { baseUrl, model, proxyUrl, ...options } = {}) {
     if (!baseUrl?.trim()) throw new Error('Custom provider requires a base URL.');
     if (!model?.trim()) throw new Error('Custom provider requires a model name.');
     const result = await callOpenAI(apiKey, messages, {
         ...options,
         model,
-        url: resolveUrl(baseUrl, '/chat/completions'),
+        ...customTarget(baseUrl, '/chat/completions', proxyUrl),
         fetcher: fetchCustom,
         label: 'Custom provider',
     });
@@ -183,8 +191,8 @@ async function callCustom(apiKey, messages, { baseUrl, model, ...options } = {})
 
 // ── Embeddings ───────────────────────────────────────────────────
 
-async function getOpenAIEmbedding(apiKey, text, { url = 'https://api.openai.com/v1/embeddings', model = 'text-embedding-3-small', fetcher = fetch } = {}) {
-    const headers = { 'Content-Type': 'application/json' };
+async function getOpenAIEmbedding(apiKey, text, { url = 'https://api.openai.com/v1/embeddings', model = 'text-embedding-3-small', fetcher = fetch, extraHeaders = {} } = {}) {
+    const headers = { 'Content-Type': 'application/json', ...extraHeaders };
     if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
 
     const res = await fetcher(url, {
@@ -214,12 +222,12 @@ async function getGeminiEmbedding(apiKey, text) {
     return data.embedding.values;
 }
 
-async function getCustomEmbedding(apiKey, text, { baseUrl, embeddingModel } = {}) {
+async function getCustomEmbedding(apiKey, text, { baseUrl, embeddingModel, proxyUrl } = {}) {
     if (!baseUrl?.trim() || !embeddingModel?.trim()) {
         throw new Error('Custom provider requires a base URL and an embedding model for semantic search.');
     }
     return getOpenAIEmbedding(apiKey, text, {
-        url: resolveUrl(baseUrl, '/embeddings'),
+        ...customTarget(baseUrl, '/embeddings', proxyUrl),
         model: embeddingModel,
         fetcher: fetchCustom,
     });

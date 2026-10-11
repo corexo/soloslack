@@ -15,7 +15,7 @@ export function SettingsProvider({ children }) {
         openai: { model: '' },
         anthropic: { model: '' },
         gemini: { model: '' },
-        custom: { baseUrl: '', model: '', embeddingModel: '' }
+        custom: { baseUrl: '', model: '', embeddingModel: '', useProxy: true }
     });
     const [serverEnv, setServerEnv] = useState({
         MONGODB_URI: '',

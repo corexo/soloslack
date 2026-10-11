@@ -10,5 +10,6 @@ router.use('/cards', require('./cards.routes'));
 router.use('/settings', require('./settings.routes'));
 router.use('/search', require('./search.routes'));
 router.use('/archive', require('./archive.routes'));
+router.use('/ai', require('./ai.routes'));
 
 module.exports = router;

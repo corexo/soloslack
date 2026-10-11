@@ -10,6 +10,9 @@ const AIContext = createContext(null);
 const RATE_LIMIT = 10;
 const RATE_WINDOW_MS = 60_000;
 
+// Backend proxy for custom endpoints that don't allow browser CORS
+const AI_PROXY_URL = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/ai/proxy`;
+
 export function AIProvider({ children }) {
     const { apiKeys, updateApiKeys, aiConfig, updateAIConfig } = useSettings();
 
@@ -51,6 +54,7 @@ export function AIProvider({ children }) {
         if (provider === 'custom') {
             options.baseUrl = cfg.baseUrl?.trim();
             options.embeddingModel = cfg.embeddingModel?.trim();
+            if (cfg.useProxy !== false) options.proxyUrl = AI_PROXY_URL;
         }
         return options;
     }, [aiConfig]);
@@ -132,8 +136,8 @@ export function AIProvider({ children }) {
         const key = apiKeys[provider];
         checkRateLimit();
         // Chat model overrides don't apply to embeddings
-        const { baseUrl, embeddingModel } = getProviderOptions(provider);
-        return getEmbedding(provider, key, text, { baseUrl, embeddingModel });
+        const { baseUrl, embeddingModel, proxyUrl } = getProviderOptions(provider);
+        return getEmbedding(provider, key, text, { baseUrl, embeddingModel, proxyUrl });
     }, [isConfigured, activeProvider, apiKeys, aiConfig, getProviderOptions, checkRateLimit]);
 
     /**

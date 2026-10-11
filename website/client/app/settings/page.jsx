@@ -355,9 +355,18 @@ function AIKeyInput({ provider, value, onChange, config, onConfigChange, canVali
                 <p className="text-[10px] text-red-400/80 leading-relaxed">{status.error}</p>
             )}
             {isCustom && (
-                <p className="text-[10px] text-text-muted leading-relaxed">
-                    Requests go from your browser to this URL, so the server must allow CORS (Ollama: <code className="text-sky-400">OLLAMA_ORIGINS=*</code>).
-                </p>
+                <label className="flex items-start gap-2 text-[10px] text-text-muted leading-relaxed cursor-pointer">
+                    <input
+                        type="checkbox"
+                        checked={config.useProxy !== false}
+                        onChange={(e) => onConfigChange({ useProxy: e.target.checked })}
+                        className="mt-0.5 accent-sky-500"
+                    />
+                    <span>
+                        <span className="text-text-primary font-semibold">Route via backend</span> — no CORS setup needed on the AI server; <code className="text-sky-400">localhost</code> is resolved to the Docker host.
+                        Unchecked, the browser calls the URL directly and the server must allow CORS (Ollama: <code className="text-sky-400">OLLAMA_ORIGINS=*</code>).
+                    </span>
+                </label>
             )}
         </div>
     );
