@@ -152,6 +152,9 @@ export default function AgentsSection() {
                             <code className="text-[11px] font-mono text-text-primary break-all flex-1">{loginCommand}</code>
                             <CopyButton text={loginCommand} />
                         </div>
+                        <p className="text-[11px] text-text-secondary">
+                            Then give the agent the <span className="text-sky-400 font-semibold">Agent Skill</span> below so it knows how to work with SoloSlack.
+                        </p>
                         <button type="button" onClick={() => setRevealed(null)} className="text-[11px] text-text-muted hover:text-text-primary">
                             Done
                         </button>

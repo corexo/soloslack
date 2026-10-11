@@ -23,6 +23,8 @@ services:
       - PORT=5000
       - MONGODB_URI=mongodb://mongo:27017/soloslack
       - CORS_ORIGIN=*
+      # Web UI address used in links handed to agents (SKILL.md)
+      - PUBLIC_WEB_URL=http://localhost:3005
       # Lets the AI proxy reach local LLM servers (Ollama, LM Studio, Unsloth) on the host
       - AI_PROXY_LOCALHOST_ALIAS=host.docker.internal
       # Card attachments (agent screenshots, markdown reports)

@@ -43,6 +43,15 @@ soloslack branch <id> feat/login-form             # link the branch you created
 `--json` on `tasks` / `show` gives machine-readable output.
 The board and open card dialogs refresh automatically (comments every 10 s, board every 15 s).
 
+## Agent skill
+
+The full agent instructions live in the web UI under **Settings → Agent Skill** (editable) and are
+served as markdown at `http://localhost:5005/api/agents/skill.md`. Install for Claude Code:
+
+```bash
+mkdir -p ~/.claude/skills/soloslack && curl -s http://localhost:5005/api/agents/skill.md -o ~/.claude/skills/soloslack/SKILL.md
+```
+
 ## Prompt snippet for agents
 
 > You have tickets on the SoloSlack board. Use the `soloslack` CLI:

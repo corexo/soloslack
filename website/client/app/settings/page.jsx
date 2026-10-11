@@ -4,6 +4,7 @@ import { useSettings } from '@/context/SettingsContext';
 import { useAI } from '@/context/AIContext';
 import { DEFAULT_MODELS } from '@/lib/ai/providers';
 import AgentsSection from '@/components/settings/AgentsSection';
+import AgentSkillSection from '@/components/settings/AgentSkillSection';
 import { Key, Save, Shield, Settings2, Sparkles, CheckCircle2, Eye, EyeOff, Cpu, Zap, AlertCircle } from 'lucide-react';
 
 const PROVIDERS = [
@@ -199,6 +200,8 @@ export default function SettingsPage() {
 
                 <AgentsSection />
 
+                <AgentSkillSection />
+
                 {/* Appearance Section */}
                 <section className="glass-morphism rounded-2xl border border-border-subtle p-6 shadow-xl overflow-hidden">
                     <div className="flex items-center gap-3 mb-6">
@@ -326,9 +329,6 @@ function AIKeyInput({ provider, value, onChange, config, onConfigChange, canVali
                         autoComplete="off"
                         data-1p-ignore
                         data-lpignore="true"
-                    autoComplete="off"
-                    data-1p-ignore
-                    data-lpignore="true"
                         value={config.embeddingModel || ''}
                         onChange={(e) => onConfigChange({ embeddingModel: e.target.value })}
                         placeholder="Embedding model (optional)"
