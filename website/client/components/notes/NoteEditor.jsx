@@ -24,6 +24,7 @@ import { useAI } from '@/context/AIContext';
 import { useUndo } from '@/context/UndoContext';
 import { fileApi } from '@/lib/api/fileApi';
 import { noteSummaryPrompt, autoTagPrompt, writingAssistantPrompt, noteToCardsPrompt } from '@/lib/ai/prompts';
+import WorkspacePicker from '../workspaces/WorkspacePicker';
 import NoteToCardsModal from '../ai/NoteToCardsModal';
 import ConfirmModal from '../ui/ConfirmModal';
 
@@ -543,6 +544,12 @@ export default function NoteEditor() {
                             <Eye className="w-3 h-3" /> Preview
                         </button>
                     </div>
+
+                    <WorkspacePicker
+                        value={activeNote.workspaceId}
+                        onChange={(workspaceId) => updateNote(activeNote._id, { workspaceId })
+                            .catch(err => showToast({ label: 'Could not move note: ' + err.message, type: 'error' }))}
+                    />
 
                     <button
                         onClick={() => setIsCardPickerOpen(true)}

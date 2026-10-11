@@ -10,6 +10,7 @@ import CreateColumnModal from '@/components/kanban/CreateColumnModal';
 import CreateCardModal from '@/components/kanban/CreateCardModal';
 import ImportBoardModal from '@/components/kanban/ImportBoardModal';
 import RepoPicker from '@/components/kanban/RepoPicker';
+import WorkspacePicker from '@/components/workspaces/WorkspacePicker';
 import WorkflowSuggestions from '@/components/ai/WorkflowSuggestions';
 import { useAI } from '@/context/AIContext';
 import { exportBoardToJson, exportBoardToCsv } from '@/lib/utils/exportUtils';
@@ -271,6 +272,11 @@ export default function BoardViewPage() {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
+                    <WorkspacePicker
+                        value={activeBoard.board.workspaceId}
+                        onChange={(workspaceId) => updateBoard(activeBoard.board._id, { workspaceId })
+                            .catch(err => showToast({ label: 'Could not move board: ' + err.message, type: 'error' }))}
+                    />
                     <RepoPicker
                         value={activeBoard.board.gitRepo}
                         onChange={(gitRepo) => updateBoard(activeBoard.board._id, { gitRepo })
