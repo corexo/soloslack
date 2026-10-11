@@ -256,3 +256,39 @@ Write in the same language as the thread. Be concise. Return ONLY markdown with 
         },
     ];
 }
+
+// ── Workspaces ───────────────────────────────────────────────────
+
+/**
+ * Propose which workspace each board/note belongs in. Items are referenced by short
+ * ids (B1, N1, …) because small local models mangle long Mongo ids.
+ */
+export function organizeWorkspacesPrompt({ workspaces, items }) {
+    const wsList = workspaces.length
+        ? workspaces.map(w => `- ${w.name}${w.description ? `: ${w.description}` : ''}`).join('\n')
+        : '(none yet)';
+    const itemList = items.map(i => {
+        const current = i.currentWorkspace ? ` [currently in: ${i.currentWorkspace}]` : '';
+        return `${i.ref} (${i.type})${current}: ${i.title}${i.context ? `\n   ${i.context}` : ''}`;
+    }).join('\n');
+
+    return [
+        {
+            role: 'system',
+            content: `You organize a personal kanban/notes app into workspaces (one per project or area of life).
+Assign every item to the best fitting workspace. Prefer existing workspaces. Propose a new workspace only
+when several items clearly share a project that has no workspace; never create one workspace per item.
+Use "none" when an item does not fit anywhere. Keep reasons short (max 12 words), in the language of the items.
+
+Return ONLY JSON, no prose:
+{
+  "newWorkspaces": [{ "name": "...", "description": "..." }],
+  "assignments": [{ "ref": "B1", "workspace": "<workspace name or none>", "reason": "..." }]
+}`,
+        },
+        {
+            role: 'user',
+            content: `Existing workspaces:\n${wsList}\n\nItems:\n${itemList}`,
+        },
+    ];
+}

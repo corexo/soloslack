@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
-import { Sun, Moon, Trash2, Search, Archive, GripVertical, FolderOpen, Plus, X, Pencil, MoreHorizontal, BarChart3, Network } from 'lucide-react';
+import { Sun, Moon, Trash2, Search, Archive, GripVertical, FolderOpen, Plus, X, Pencil, MoreHorizontal, BarChart3, Network, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -14,6 +14,8 @@ import DeleteBoardModal from '@/components/kanban/DeleteBoardModal';
 import AnimatedIcon from '@/components/ui/AnimatedIcon';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import UnifiedSearch from '@/components/ui/UnifiedSearch';
+import OrganizeWorkspacesModal from '@/components/ai/OrganizeWorkspacesModal';
+import { useAI } from '@/context/AIContext';
 import KeyboardShortcutsModal from '@/components/ui/KeyboardShortcutsModal';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
@@ -76,6 +78,8 @@ export default function Sidebar() {
     const pathname = usePathname();
     const { boards, fetchBoards, createBoard, setIsCreateBoardModalOpen, reorderBoards } = useBoards();
     const { workspaces, activeWorkspaceId, setActiveWorkspaceId, fetchWorkspaces, createWorkspace, updateWorkspace, deleteWorkspace } = useWorkspaces();
+    const { isConfigured: aiConfigured } = useAI();
+    const [isOrganizeOpen, setIsOrganizeOpen] = useState(false);
     const { theme, updateTheme, focusMode } = useSettings();
     const [boardsExpanded, setBoardsExpanded] = useState(true);
     const [workspacesExpanded, setWorkspacesExpanded] = useState(true);
@@ -502,6 +506,17 @@ export default function Sidebar() {
                                     New Workspace
                                 </button>
                             )}
+
+                            {aiConfigured && (
+                                <button
+                                    onClick={() => setIsOrganizeOpen(true)}
+                                    className="w-full flex items-center gap-2.5 px-3 py-1.5 text-xs text-text-muted hover:text-purple-400 hover:bg-purple-500/5 rounded-lg transition-all duration-200"
+                                    title="Let AI suggest workspaces for boards and notes"
+                                >
+                                    <Sparkles className="w-4 h-4 p-0.5" />
+                                    Organize with AI
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>
@@ -641,6 +656,7 @@ export default function Sidebar() {
                 onClose={() => setIsSearchOpen(false)}
             />
 
+            <OrganizeWorkspacesModal isOpen={isOrganizeOpen} onClose={() => setIsOrganizeOpen(false)} />
             <KeyboardShortcutsModal
                 isOpen={isShortcutsOpen}
                 onClose={() => setIsShortcutsOpen(false)}
