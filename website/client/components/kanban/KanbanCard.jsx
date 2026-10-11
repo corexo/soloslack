@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Calendar, MessageSquare } from 'lucide-react';
+import { Calendar, MessageSquare, Bot } from 'lucide-react';
 import Badge from '../ui/Badge';
 import AnimatedIcon from '../ui/AnimatedIcon';
 import { cn } from '@/lib/utils/cn';
@@ -71,6 +71,15 @@ export default function KanbanCard({ card, onClick, isOverlay, selectMode, isSel
             {/* Priority badge */}
             <div className="flex items-start justify-between mb-2">
                 <Badge priority={card.priority} />
+                {card.assignee && (
+                    <span
+                        className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 max-w-[50%]"
+                        title={`Assigned to ${card.assignee}`}
+                    >
+                        <Bot className="w-3 h-3 shrink-0" />
+                        <span className="truncate">{card.assignee}</span>
+                    </span>
+                )}
             </div>
 
             {/* Labels */}

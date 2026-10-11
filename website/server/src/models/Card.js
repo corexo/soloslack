@@ -42,6 +42,13 @@ const cardSchema = new mongoose.Schema(
             ref: 'Note',
             default: null,
         },
+        // Name of the AI agent this ticket is assigned to (see Agent model)
+        assignee: {
+            type: String,
+            default: null,
+            trim: true,
+            lowercase: true,
+        },
         dueDate: {
             type: Date,
             default: null,
@@ -80,5 +87,6 @@ const cardSchema = new mongoose.Schema(
 cardSchema.index({ columnId: 1, order: 1 });
 cardSchema.index({ boardId: 1 });
 cardSchema.index({ boardId: 1, isArchived: 1 });
+cardSchema.index({ assignee: 1, isArchived: 1 });
 
 module.exports = mongoose.model('Card', cardSchema);

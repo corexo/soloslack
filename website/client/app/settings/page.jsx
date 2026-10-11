@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useSettings } from '@/context/SettingsContext';
 import { useAI } from '@/context/AIContext';
 import { DEFAULT_MODELS } from '@/lib/ai/providers';
+import AgentsSection from '@/components/settings/AgentsSection';
 import { Key, Save, Shield, Settings2, Sparkles, CheckCircle2, Eye, EyeOff, Cpu, Zap, AlertCircle } from 'lucide-react';
 
 const PROVIDERS = [
@@ -195,6 +196,8 @@ export default function SettingsPage() {
                         </div>
                     </div>
                 </section>
+
+                <AgentsSection />
 
                 {/* Appearance Section */}
                 <section className="glass-morphism rounded-2xl border border-border-subtle p-6 shadow-xl overflow-hidden">

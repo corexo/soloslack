@@ -22,6 +22,8 @@ async function checkWipLimit(columnId, excludeCardId = null) {
     }
 }
 
+exports.checkWipLimit = checkWipLimit;
+
 // @desc    Get cards that are overdue or due within the next 7 days
 // @route   GET /api/cards/upcoming
 exports.getUpcomingCards = async (req, res, next) => {
@@ -122,6 +124,7 @@ exports.createCard = async (req, res, next) => {
             order,
             ...(req.body.labels && { labels: req.body.labels }),
             ...(req.body.checklist && { checklist: req.body.checklist }),
+            ...(req.body.assignee && { assignee: req.body.assignee }),
         });
 
         // 1.5 Handle reciprocal linking to Note

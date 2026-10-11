@@ -7,12 +7,16 @@ const commentSchema = new mongoose.Schema(
             ref: 'Card',
             required: [true, 'cardId is required'],
         },
+        // May be empty when the comment only carries attachments
         body: {
             type: String,
-            required: [true, 'Comment body is required'],
+            default: '',
             trim: true,
-            maxlength: [2000, 'Comment cannot exceed 2000 characters'],
+            maxlength: [50000, 'Comment cannot exceed 50000 characters'],
         },
+        author: { type: String, default: 'user', trim: true },
+        authorType: { type: String, enum: ['user', 'agent'], default: 'user' },
+        attachments: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Attachment' }],
     },
     { timestamps: true }
 );

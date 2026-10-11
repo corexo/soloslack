@@ -25,7 +25,10 @@ function WikiAwareLink({ href, children, onWikiLink }) {
     return <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>;
 }
 
-export default function MarkdownRenderer({ content, onWikiLink }) {
+// Tighter typography for small spaces like card comments
+const COMPACT_CLASSES = 'prose-sm text-xs prose-h1:text-base prose-h2:text-sm prose-h3:text-sm prose-headings:mt-2 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-li:text-text-primary prose-pre:my-1.5';
+
+export default function MarkdownRenderer({ content, onWikiLink, compact = false }) {
     const components = {
         a: ({ href, children }) => (
             <WikiAwareLink href={href} onWikiLink={onWikiLink}>{children}</WikiAwareLink>
@@ -48,7 +51,7 @@ export default function MarkdownRenderer({ content, onWikiLink }) {
     };
 
     return (
-        <div className="prose dark:prose-invert max-w-none
+        <div className={`${compact ? COMPACT_CLASSES : ''} prose dark:prose-invert max-w-none
       prose-headings:text-text-primary prose-headings:font-bold
       prose-p:text-text-primary prose-p:leading-relaxed
       prose-a:text-accent prose-a:no-underline hover:prose-a:underline
@@ -58,7 +61,7 @@ export default function MarkdownRenderer({ content, onWikiLink }) {
       prose-blockquote:border-l-accent prose-blockquote:text-text-secondary prose-blockquote:bg-surface-raised/30
       prose-table:border prose-table:border-border-subtle
       prose-th:bg-surface-raised prose-th:text-text-primary
-      prose-td:text-text-secondary"
+      prose-td:text-text-secondary`}
         >
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>{content}</ReactMarkdown>
         </div>

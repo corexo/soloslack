@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
     DndContext,
     DragOverlay,
@@ -35,8 +35,13 @@ export default function KanbanBoard({
     // Is the current drag a multi-card drag?
     const isMultiDrag = selectMode && activeId && selectedCardIds.size > 1 && selectedCardIds.has(activeId);
 
+    // Background refreshes must not reset a drag in progress (ref so drag end doesn't re-sync)
+    const activeIdRef = useRef(null);
+    activeIdRef.current = activeId;
+
     // Sync local state when the server-driven prop changes (after a move completes, etc.)
     useEffect(() => {
+        if (activeIdRef.current) return;
         setLocalCardsByColumn(cardsByColumn);
     }, [cardsByColumn]);
 

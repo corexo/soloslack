@@ -11,5 +11,8 @@ router.use('/settings', require('./settings.routes'));
 router.use('/search', require('./search.routes'));
 router.use('/archive', require('./archive.routes'));
 router.use('/ai', require('./ai.routes'));
+router.use('/agents', require('./agents.routes'));
+router.use('/agent', require('./agentApi.routes'));
+router.use('/attachments', require('./attachments.routes'));
 
 module.exports = router;

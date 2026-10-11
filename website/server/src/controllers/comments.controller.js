@@ -1,5 +1,6 @@
 const Comment = require('../models/Comment');
 const Card = require('../models/Card');
+const { createCommentWithFiles, deleteAttachmentsOfComment, removeFiles, serializeComment } = require('../utils/attachments');
 
 // @desc    Get all comments for a card
 // @route   GET /api/cards/:cardId/comments
@@ -16,12 +17,13 @@ exports.getComments = async (req, res, next) => {
 
         const comments = await Comment.find({ cardId })
             .sort({ createdAt: -1 })
+            .populate('attachments')
             .lean();
 
         res.status(200).json({
             success: true,
             count: comments.length,
-            data: comments,
+            data: comments.map(serializeComment),
         });
     } catch (error) {
         next(error);
@@ -29,17 +31,10 @@ exports.getComments = async (req, res, next) => {
 };
 
 // @desc    Create a comment on a card
-// @route   POST /api/cards/:cardId/comments
+// @route   POST /api/cards/:cardId/comments  (JSON or multipart with `files`)
 exports.createComment = async (req, res, next) => {
     try {
         const { cardId } = req.params;
-        const { body } = req.body;
-
-        if (!body || !body.trim()) {
-            const error = new Error('Comment body is required');
-            error.statusCode = 400;
-            throw error;
-        }
 
         const card = await Card.findById(cardId);
         if (!card) {
@@ -48,7 +43,7 @@ exports.createComment = async (req, res, next) => {
             throw error;
         }
 
-        const comment = await Comment.create({ cardId, body: body.trim() });
+        const comment = await createCommentWithFiles({ cardId, body: req.body?.body, files: req.files || [] });
 
         res.status(201).json({
             success: true,
@@ -56,6 +51,7 @@ exports.createComment = async (req, res, next) => {
             message: 'Comment created successfully',
         });
     } catch (error) {
+        await removeFiles(req.files);
         next(error);
     }
 };
@@ -77,7 +73,7 @@ exports.updateComment = async (req, res, next) => {
             commentId,
             { body: body.trim() },
             { new: true, runValidators: true }
-        );
+        ).populate('attachments').lean();
 
         if (!comment) {
             const error = new Error('Comment not found');
@@ -87,7 +83,7 @@ exports.updateComment = async (req, res, next) => {
 
         res.status(200).json({
             success: true,
-            data: comment,
+            data: serializeComment(comment),
             message: 'Comment updated successfully',
         });
     } catch (error) {
@@ -107,6 +103,7 @@ exports.deleteComment = async (req, res, next) => {
             error.statusCode = 404;
             throw error;
         }
+        await deleteAttachmentsOfComment(commentId);
 
         res.status(204).send();
     } catch (error) {

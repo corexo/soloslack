@@ -14,6 +14,8 @@ import ConfirmModal from '@/components/ui/ConfirmModal';
 import { useUndo } from '@/context/UndoContext';
 import { cn } from '@/lib/utils/cn';
 
+const BOARD_POLL_MS = 15_000;
+
 export default function BoardViewPage() {
     const { id } = useParams();
     const {
@@ -39,6 +41,20 @@ export default function BoardViewPage() {
 
     useEffect(() => {
         if (id) fetchBoardFull(id);
+    }, [id, fetchBoardFull]);
+
+    // Pick up changes made by AI agents (moves, reassignments) without a reload
+    useEffect(() => {
+        if (!id) return;
+        const refresh = () => {
+            if (document.visibilityState === 'visible') fetchBoardFull(id, { silent: true });
+        };
+        const interval = setInterval(refresh, BOARD_POLL_MS);
+        window.addEventListener('focus', refresh);
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('focus', refresh);
+        };
     }, [id, fetchBoardFull]);
 
     // Derive live card from activeBoard — always in sync with optimistic updates

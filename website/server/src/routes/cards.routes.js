@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getCards, getCardById, createCard, updateCard, moveCard, deleteCard, getUpcomingCards, bulkDeleteCards, bulkMoveCards, bulkArchiveCards, bulkUnarchiveCards } = require('../controllers/cards.controller');
 const { getComments, createComment, updateComment, deleteComment } = require('../controllers/comments.controller');
+const { upload, MAX_FILES } = require('../config/uploads');
 
 router.route('/')
     .get(getCards)
@@ -24,7 +25,7 @@ router.patch('/:id/move', moveCard);
 // Comments nested under cards
 router.route('/:cardId/comments')
     .get(getComments)
-    .post(createComment);
+    .post(upload.array('files', MAX_FILES), createComment);
 
 router.route('/:cardId/comments/:commentId')
     .patch(updateComment)

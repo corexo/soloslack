@@ -15,6 +15,10 @@ const request = async (url, options = {}) => {
     return res.json();
 };
 
+// Attachment URLs from the API are origin-relative (/api/attachments/...)
+const ORIGIN = (BASE || '').replace(/\/api\/?$/, '');
+export const attachmentUrl = (attachment) => `${ORIGIN}${attachment.url}`;
+
 export const cardsApi = {
     getAll: (params = {}) => {
         const qs = new URLSearchParams(params).toString();
@@ -33,7 +37,17 @@ export const cardsApi = {
 
     // Comments
     getComments: (cardId) => request(`/cards/${cardId}/comments`),
-    createComment: (cardId, body) => request(`/cards/${cardId}/comments`, { method: 'POST', body: JSON.stringify({ body }) }),
+    createComment: async (cardId, body, files = []) => {
+        if (!files.length) return request(`/cards/${cardId}/comments`, { method: 'POST', body: JSON.stringify({ body }) });
+        // Multipart — let the browser set the boundary header
+        const form = new FormData();
+        form.append('body', body);
+        files.forEach(f => form.append('files', f, f.name));
+        const res = await fetch(`${BASE}/cards/${cardId}/comments`, { method: 'POST', body: form });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Request failed');
+        return data;
+    },
     updateComment: (cardId, commentId, body) => request(`/cards/${cardId}/comments/${commentId}`, { method: 'PATCH', body: JSON.stringify({ body }) }),
     deleteComment: (cardId, commentId) => request(`/cards/${cardId}/comments/${commentId}`, { method: 'DELETE' }),
 };

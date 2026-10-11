@@ -1,0 +1,35 @@
+const path = require('path');
+const contentDisposition = require('content-disposition');
+const mongoose = require('mongoose');
+const Attachment = require('../models/Attachment');
+const { UPLOAD_DIR } = require('../config/uploads');
+
+// Rendered inline in the UI; everything else is forced to download so uploaded
+// HTML/SVG can't run script on the API origin
+const INLINE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
+const TEXT_EXTENSIONS = new Set(['.md', '.markdown', '.txt', '.log', '.json', '.csv', '.yml', '.yaml']);
+
+// @desc    Download / display an attachment
+// @route   GET /api/attachments/:id/raw
+exports.getRaw = async (req, res, next) => {
+    try {
+        if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).end();
+        const attachment = await Attachment.findById(req.params.id).lean();
+        if (!attachment) return res.status(404).json({ success: false, error: 'Attachment not found' });
+
+        const ext = path.extname(attachment.name).toLowerCase();
+        res.set('X-Content-Type-Options', 'nosniff');
+        const inline = INLINE_TYPES.has(attachment.mimeType)
+            || TEXT_EXTENSIONS.has(ext) || attachment.mimeType.startsWith('text/');
+        if (INLINE_TYPES.has(attachment.mimeType)) res.type(attachment.mimeType);
+        else if (inline) res.type('text/plain; charset=utf-8');
+        else res.type('application/octet-stream');
+        res.set('Content-Disposition', contentDisposition(attachment.name, { type: inline ? 'inline' : 'attachment' }));
+
+        res.sendFile(attachment.storageKey, { root: UPLOAD_DIR }, (err) => {
+            if (err && !res.headersSent) res.status(404).json({ success: false, error: 'File missing on disk' });
+        });
+    } catch (error) {
+        next(error);
+    }
+};

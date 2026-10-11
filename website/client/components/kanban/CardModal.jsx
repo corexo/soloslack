@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { FileText, Trash2, Eye, Edit3, Calendar, CheckSquare, Plus, X, Tag, MessageSquare, Pencil, Send, Sparkles } from 'lucide-react';
+import { FileText, Trash2, Eye, Edit3, Calendar, CheckSquare, Plus, X, Tag, MessageSquare, Pencil, Send, Sparkles, Bot, Paperclip } from 'lucide-react';
 import Link from 'next/link';
 import Modal from '../ui/Modal';
 import Badge from '../ui/Badge';
@@ -10,6 +10,8 @@ import ConfirmModal from '../ui/ConfirmModal';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 import { notesApi } from '@/lib/api/notesApi';
 import { cardsApi } from '@/lib/api/cardsApi';
+import { agentsApi } from '@/lib/api/agentsApi';
+import CommentAttachments from './CommentAttachments';
 import { cn } from '@/lib/utils/cn';
 import { timeAgo, toInputDateValue } from '@/lib/utils/formatDate';
 import { LABEL_COLORS, getLabelColor } from '@/lib/utils/labelColors';
@@ -18,6 +20,8 @@ import { useUndo } from '@/context/UndoContext';
 import { cardDescriptionPrompt } from '@/lib/ai/prompts';
 
 const PRIORITIES = ['low', 'medium', 'high'];
+// Agents post updates continuously — refresh comments while the card is open
+const COMMENT_POLL_MS = 10_000;
 
 export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete }) {
     const { showToast } = useUndo();
@@ -41,11 +45,16 @@ export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete })
     const [newComment, setNewComment] = useState('');
     const [editingCommentId, setEditingCommentId] = useState(null);
     const [editingCommentBody, setEditingCommentBody] = useState('');
+    const [commentFiles, setCommentFiles] = useState([]);
+    const [isPostingComment, setIsPostingComment] = useState(false);
+    const [agents, setAgents] = useState([]);
+    const [assignee, setAssignee] = useState('');
     const [aiGenerating, setAiGenerating] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
     const newItemRef = useRef(null);
     const labelInputRef = useRef(null);
     const commentInputRef = useRef(null);
+    const commentFileRef = useRef(null);
 
     const { askAI, isConfigured: aiConfigured } = useAI();
 
@@ -62,6 +71,8 @@ export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete })
         setDueDate(toInputDateValue(card.dueDate));
         setChecklist(card.checklist ?? []);
         setLabels(card.labels ?? []);
+        setAssignee(card.assignee ?? '');
+        setCommentFiles([]);
         setNewItemText('');
         setIsLabelAdding(false);
         setNewLabelText('');
@@ -82,8 +93,26 @@ export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete })
             .then(res => { if (!cancelled) setComments(res.data); })
             .catch(() => { if (!cancelled) setComments([]); })
             .finally(() => { if (!cancelled) setCommentsLoading(false); });
-        return () => { cancelled = true; };
+
+        const poll = setInterval(() => {
+            if (document.visibilityState !== 'visible') return;
+            cardsApi.getComments(card._id)
+                .then(res => { if (!cancelled) setComments(res.data); })
+                .catch(() => {});
+        }, COMMENT_POLL_MS);
+        return () => { cancelled = true; clearInterval(poll); };
     }, [card?._id, isOpen]);
+
+    // Agents available for assignment
+    useEffect(() => {
+        if (!isOpen) return;
+        agentsApi.getAll().then(res => setAgents(res.data)).catch(() => setAgents([]));
+    }, [isOpen]);
+
+    // Keep the assignee in sync when an agent reassigns the card in the background
+    useEffect(() => {
+        setAssignee(card?.assignee ?? '');
+    }, [card?.assignee]);
 
     // Fetch linked note title when linkedNoteId changes
     useEffect(() => {
@@ -131,6 +160,12 @@ export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete })
     const handlePriorityChange = (p) => {
         setPriority(p);
         onUpdate(card._id, { priority: p });
+    };
+
+    const handleAssigneeChange = (e) => {
+        const value = e.target.value;
+        setAssignee(value);
+        onUpdate(card._id, { assignee: value || null });
     };
 
     const handleDueDateChange = (e) => {
@@ -198,8 +233,37 @@ export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete })
         if (e.key === 'Escape') { setIsLabelAdding(false); }
     };
 
+    const addCommentFiles = (fileList) => {
+        const files = Array.from(fileList || []);
+        if (files.length) setCommentFiles(prev => [...prev, ...files].slice(0, 10));
+    };
+
+    // Paste screenshots straight from the clipboard
+    const handleCommentPaste = (e) => {
+        const files = Array.from(e.clipboardData?.files || []);
+        if (!files.length) return;
+        e.preventDefault();
+        addCommentFiles(files.map((f, i) => f.name && f.name !== 'image.png'
+            ? f
+            : new File([f], `screenshot-${Date.now()}-${i}.png`, { type: f.type })));
+    };
+
     const handleCommentAdd = async () => {
         const body = newComment.trim();
+        if (commentFiles.length) {
+            setIsPostingComment(true);
+            try {
+                const res = await cardsApi.createComment(card._id, body, commentFiles);
+                setComments(prev => [res.data, ...prev]);
+                setNewComment('');
+                setCommentFiles([]);
+            } catch (err) {
+                showToast({ label: 'Upload failed: ' + err.message, type: 'error' });
+            } finally {
+                setIsPostingComment(false);
+            }
+            return;
+        }
         if (!body || !card) return;
         setNewComment('');
         try {
@@ -305,6 +369,34 @@ export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete })
                             </button>
                         ))}
                     </div>
+                </section>
+
+                {/* Assignee (AI agent) */}
+                <section>
+                    <label className="block text-xs font-semibold text-text-muted uppercase mb-1.5">
+                        <span className="flex items-center gap-1.5">
+                            <Bot className="w-3 h-3" /> Assigned Agent
+                        </span>
+                    </label>
+                    {agents.length === 0 && !assignee ? (
+                        <p className="text-[11px] text-text-muted">
+                            No agents yet — create one under <Link href="/settings" onClick={onClose} className="text-accent hover:underline">Settings → AI Agents</Link>.
+                        </p>
+                    ) : (
+                        <select
+                            value={assignee}
+                            onChange={handleAssigneeChange}
+                            className="w-full bg-surface-overlay border border-border-default rounded-md px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent transition-colors"
+                        >
+                            <option value="">Unassigned</option>
+                            {agents.map(a => (
+                                <option key={a._id} value={a.name}>{a.name}{a.description ? ` — ${a.description}` : ''}</option>
+                            ))}
+                            {assignee && !agents.some(a => a.name === assignee) && (
+                                <option value={assignee}>{assignee} (deleted)</option>
+                            )}
+                        </select>
+                    )}
                 </section>
 
                 {/* Due Date */}
@@ -559,27 +651,59 @@ export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete })
                     </label>
 
                     {/* New comment input */}
-                    <div className="flex items-start gap-2 mb-3">
+                    <div className="flex items-start gap-2 mb-2">
                         <textarea
                             ref={commentInputRef}
                             value={newComment}
                             onChange={(e) => setNewComment(e.target.value)}
+                            onPaste={handleCommentPaste}
                             onKeyDown={(e) => {
                                 if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleCommentAdd(); }
                             }}
-                            placeholder="Add a comment…"
+                            placeholder="Add a comment… (Markdown, paste screenshots)"
                             rows={2}
                             className="flex-1 bg-surface-overlay border border-border-default rounded-md px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent transition-colors resize-none"
                         />
-                        <button
-                            onClick={handleCommentAdd}
-                            disabled={!newComment.trim()}
-                            className="p-2 rounded-md bg-accent/10 text-accent hover:bg-accent/20 transition-colors disabled:opacity-30 shrink-0 mt-0.5"
-                            title="Post comment"
-                        >
-                            <Send className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex flex-col gap-1 shrink-0 mt-0.5">
+                            <button
+                                onClick={handleCommentAdd}
+                                disabled={(!newComment.trim() && !commentFiles.length) || isPostingComment}
+                                className="p-2 rounded-md bg-accent/10 text-accent hover:bg-accent/20 transition-colors disabled:opacity-30"
+                                title="Post comment"
+                            >
+                                {isPostingComment
+                                    ? <div className="w-3.5 h-3.5 border border-accent/30 border-t-accent rounded-full animate-spin" />
+                                    : <Send className="w-3.5 h-3.5" />}
+                            </button>
+                            <button
+                                onClick={() => commentFileRef.current?.click()}
+                                className="p-2 rounded-md text-text-muted hover:text-accent hover:bg-accent/10 transition-colors"
+                                title="Attach files (screenshots, markdown)"
+                            >
+                                <Paperclip className="w-3.5 h-3.5" />
+                            </button>
+                            <input
+                                ref={commentFileRef}
+                                type="file"
+                                multiple
+                                className="hidden"
+                                onChange={(e) => { addCommentFiles(e.target.files); e.target.value = ''; }}
+                            />
+                        </div>
                     </div>
+                    {commentFiles.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                            {commentFiles.map((f, i) => (
+                                <span key={i} className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent">
+                                    <Paperclip className="w-2.5 h-2.5" />
+                                    <span className="max-w-[140px] truncate">{f.name}</span>
+                                    <button onClick={() => setCommentFiles(prev => prev.filter((_, j) => j !== i))} className="hover:text-red-400">
+                                        <X className="w-2.5 h-2.5" />
+                                    </button>
+                                </span>
+                            ))}
+                        </div>
+                    )}
 
                     {/* Comments list */}
                     {commentsLoading ? (
@@ -587,11 +711,16 @@ export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete })
                     ) : comments.length === 0 ? (
                         <p className="text-[10px] text-text-muted italic">No comments yet</p>
                     ) : (
-                        <div className="space-y-2 max-h-[240px] overflow-y-auto pr-1">
+                        <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
                             {comments.map(comment => (
                                 <div
                                     key={comment._id}
-                                    className="group bg-surface-overlay/50 border border-border-subtle rounded-md px-3 py-2"
+                                    className={cn(
+                                        'group border rounded-md px-3 py-2',
+                                        comment.authorType === 'agent'
+                                            ? 'bg-sky-500/5 border-sky-500/20'
+                                            : 'bg-surface-overlay/50 border-border-subtle'
+                                    )}
                                 >
                                     {editingCommentId === comment._id ? (
                                         <div className="space-y-1.5">
@@ -624,9 +753,15 @@ export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete })
                                         </div>
                                     ) : (
                                         <>
-                                            <p className="text-xs text-text-primary whitespace-pre-wrap leading-relaxed">
-                                                {comment.body}
-                                            </p>
+                                            {comment.authorType === 'agent' && (
+                                                <div className="flex items-center gap-1 mb-1 text-[10px] font-semibold text-sky-400">
+                                                    <Bot className="w-3 h-3" /> {comment.author}
+                                                </div>
+                                            )}
+                                            {comment.body && (
+                                                <MarkdownRenderer content={comment.body} compact />
+                                            )}
+                                            <CommentAttachments attachments={comment.attachments} />
                                             <div className="flex items-center justify-between mt-1.5">
                                                 <span className="text-[10px] text-text-muted">
                                                     {timeAgo(comment.createdAt)}

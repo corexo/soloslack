@@ -43,3 +43,6 @@ next-env.d.ts
 
 # Large files
 duplicates_check.csv
+
+# card attachments (local dev)
+website/server/uploads/

@@ -35,8 +35,9 @@ export function BoardsProvider({ children }) {
         }
     }, []);
 
-    const fetchBoardFull = useCallback(async (id) => {
-        setLoading(true);
+    // `silent` refreshes in the background without the loading state (used for live updates)
+    const fetchBoardFull = useCallback(async (id, { silent = false } = {}) => {
+        if (!silent) setLoading(true);
         try {
             const res = await boardsApi.getBoardFull(id);
             setActiveBoard(res.data);
@@ -44,7 +45,7 @@ export function BoardsProvider({ children }) {
         } catch (err) {
             console.error('Failed to fetch board:', err);
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     }, []);
 
