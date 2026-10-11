@@ -297,6 +297,9 @@ function AIKeyInput({ provider, value, onChange, config, onConfigChange, canVali
             {isCustom && (
                 <input
                     type="text"
+                    autoComplete="off"
+                    data-1p-ignore
+                    data-lpignore="true"
                     value={config.baseUrl || ''}
                     onChange={(e) => onConfigChange({ baseUrl: e.target.value })}
                     placeholder="Base URL, e.g. http://localhost:11434/v1"
@@ -306,6 +309,9 @@ function AIKeyInput({ provider, value, onChange, config, onConfigChange, canVali
             <div className="flex items-center gap-2">
                 <input
                     type="text"
+                    autoComplete="off"
+                    data-1p-ignore
+                    data-lpignore="true"
                     value={config.model || ''}
                     onChange={(e) => onConfigChange({ model: e.target.value })}
                     placeholder={isCustom ? 'Model, e.g. llama3.1 (required)' : `Model (default: ${DEFAULT_MODELS[provider.key]})`}
@@ -314,6 +320,12 @@ function AIKeyInput({ provider, value, onChange, config, onConfigChange, canVali
                 {isCustom && (
                     <input
                         type="text"
+                        autoComplete="off"
+                        data-1p-ignore
+                        data-lpignore="true"
+                    autoComplete="off"
+                    data-1p-ignore
+                    data-lpignore="true"
                         value={config.embeddingModel || ''}
                         onChange={(e) => onConfigChange({ embeddingModel: e.target.value })}
                         placeholder="Embedding model (optional)"
@@ -325,6 +337,9 @@ function AIKeyInput({ provider, value, onChange, config, onConfigChange, canVali
                 <div className="relative flex-1">
                     <input
                         type={visible ? 'text' : 'password'}
+                        autoComplete="new-password"
+                        data-1p-ignore
+                        data-lpignore="true"
                         value={value}
                         onChange={(e) => onChange(e.target.value)}
                         placeholder={isCustom ? 'API key (optional)' : provider.placeholder}
