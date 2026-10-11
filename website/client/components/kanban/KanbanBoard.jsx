@@ -37,7 +37,7 @@ export default function KanbanBoard({
 
     // Background refreshes must not reset a drag in progress (ref so drag end doesn't re-sync)
     const activeIdRef = useRef(null);
-    activeIdRef.current = activeId;
+    useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
 
     // Sync local state when the server-driven prop changes (after a move completes, etc.)
     useEffect(() => {

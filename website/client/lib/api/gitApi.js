@@ -17,6 +17,7 @@ const request = async (url, options = {}) => {
 export const gitApi = {
     getRepos: () => request('/git/repos'),
     getBranches: (repo) => request(`/git/repos/${encodeURIComponent(repo)}/branches`),
+    getGraph: (repo, limit = 150) => request(`/git/repos/${encodeURIComponent(repo)}/graph?limit=${limit}`),
     createBranch: (repo, name, from) => request(`/git/repos/${encodeURIComponent(repo)}/branches`, {
         method: 'POST',
         body: JSON.stringify({ name, from }),

@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
-import { Sun, Moon, Trash2, Search, Archive, GripVertical, FolderOpen, Plus, X, Pencil, MoreHorizontal, BarChart3 } from 'lucide-react';
+import { Sun, Moon, Trash2, Search, Archive, GripVertical, FolderOpen, Plus, X, Pencil, MoreHorizontal, BarChart3, Network } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -237,6 +237,11 @@ export default function Sidebar() {
             path: '/analytics',
             type: 'analytics'
         },
+        {
+            name: 'Agents',
+            path: '/agents',
+            type: 'agents'
+        },
     ];
 
     const isActive = (path) => {
@@ -313,6 +318,8 @@ export default function Sidebar() {
                                 <Archive className="w-5 h-5" />
                             ) : item.type === 'analytics' ? (
                                 <BarChart3 className="w-5 h-5" />
+                            ) : item.type === 'agents' ? (
+                                <Network className="w-5 h-5" />
                             ) : (
                                 <AnimatedIcon
                                     type={item.type}

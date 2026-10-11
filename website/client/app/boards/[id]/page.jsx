@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import { useBoards } from '@/context/BoardsContext';
 import KanbanBoard from '@/components/kanban/KanbanBoard';
 import BoardCalendar from '@/components/kanban/BoardCalendar';
@@ -12,7 +13,7 @@ import RepoPicker from '@/components/kanban/RepoPicker';
 import WorkflowSuggestions from '@/components/ai/WorkflowSuggestions';
 import { useAI } from '@/context/AIContext';
 import { exportBoardToJson, exportBoardToCsv } from '@/lib/utils/exportUtils';
-import { Download, Upload, Plus, AlertCircle, LayoutDashboard, CalendarDays, CheckSquare, X, Trash2, Archive, ArrowRight, FileJson, FileSpreadsheet, Sparkles } from 'lucide-react';
+import { Download, Upload, Plus, AlertCircle, LayoutDashboard, CalendarDays, CheckSquare, X, Trash2, Archive, ArrowRight, FileJson, FileSpreadsheet, Sparkles, GitFork } from 'lucide-react';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import { useUndo } from '@/context/UndoContext';
 import { cn } from '@/lib/utils/cn';
@@ -275,6 +276,16 @@ export default function BoardViewPage() {
                         onChange={(gitRepo) => updateBoard(activeBoard.board._id, { gitRepo })
                             .catch(err => showToast({ label: 'Could not link repo: ' + err.message, type: 'error' }))}
                     />
+
+                    {activeBoard.board.gitRepo && (
+                        <Link
+                            href={`/boards/${id}/branches`}
+                            className="p-1.5 rounded-md text-text-secondary hover:text-emerald-400 hover:bg-surface-hover transition-colors"
+                            title="Branch graph"
+                        >
+                            <GitFork className="w-4 h-4" />
+                        </Link>
+                    )}
 
                     {aiConfigured && (
                         <button

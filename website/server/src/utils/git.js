@@ -95,4 +95,46 @@ async function createBranch(name, branch, from) {
     return (await listBranches(name)).branches.find(b => b.name === branch);
 }
 
-module.exports = { listRepos, listBranches, createBranch, REPOS_DIR };
+// Branch everything is compared against: develop > main > master > checked-out branch
+const pickBase = (branches, current) =>
+    ['develop', 'main', 'master'].find(n => branches.some(b => b.name === n && b.local)) || current;
+
+/**
+ * Commit graph across all local + remote branches, plus per-branch stats vs the base branch.
+ */
+async function getGraph(name, limit = 150) {
+    const dir = repoPath(name);
+    const { branches, current } = await listBranches(name);
+    const base = pickBase(branches, current);
+
+    const [log, merged] = await Promise.all([
+        git(dir, ['log', '--branches', '--remotes', '--topo-order', `-n${limit}`,
+            `--format=%H${SEP}%P${SEP}%s${SEP}%aI${SEP}%an${SEP}%D`]),
+        base ? git(dir, ['branch', '--format=%(refname:short)', '--merged', base]).catch(() => '') : '',
+    ]);
+
+    const commits = log.split('\n').filter(Boolean).map(line => {
+        const [hash, parents, subject, date, author, refs] = line.split(SEP);
+        return {
+            hash,
+            parents: parents ? parents.split(' ') : [],
+            subject,
+            date,
+            author,
+            refs: refs ? refs.split(', ').map(r => r.replace(/^HEAD -> /, '')).filter(r => r !== 'HEAD' && !r.endsWith('/HEAD')) : [],
+        };
+    });
+
+    const mergedSet = new Set(merged.split('\n').map(s => s.trim()).filter(Boolean));
+    // ahead/behind per local branch (one cheap rev-list each)
+    const stats = await Promise.all(branches.map(async (b) => {
+        if (!b.local || !base || b.name === base) return { ...b, ahead: 0, behind: 0, merged: b.name !== base && mergedSet.has(b.name) };
+        const counts = await git(dir, ['rev-list', '--left-right', '--count', `${base}...${b.name}`]).catch(() => '0\t0');
+        const [behind, ahead] = counts.trim().split(/\s+/).map(Number);
+        return { ...b, ahead, behind, merged: mergedSet.has(b.name) };
+    }));
+
+    return { repo: name, base, current, branches: stats, commits, truncated: commits.length >= limit };
+}
+
+module.exports = { listRepos, listBranches, createBranch, getGraph, REPOS_DIR };

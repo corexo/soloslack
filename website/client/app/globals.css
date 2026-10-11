@@ -282,3 +282,16 @@ body {
     overflow: hidden;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
+
+/* Agent network: dot travelling along a link (offset-path set inline) */
+@keyframes agent-pulse-travel {
+  0% { offset-distance: 0%; opacity: 1; }
+  85% { opacity: 1; }
+  100% { offset-distance: 100%; opacity: 0; }
+}
+
+/* Agent network: ripple around an agent node */
+@keyframes agent-pulse-ripple {
+  from { transform: scale(1); opacity: 0.9; }
+  to { transform: scale(1.8); opacity: 0; }
+}

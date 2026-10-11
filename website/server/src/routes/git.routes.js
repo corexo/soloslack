@@ -7,4 +7,6 @@ router.route('/repos/:repo/branches')
     .get(gitController.getBranches)
     .post(gitController.createBranch);
 
+router.get('/repos/:repo/graph', gitController.getGraph);
+
 module.exports = router;

@@ -1,4 +1,6 @@
 const gitService = require('../utils/git');
+const Board = require('../models/Board');
+const Card = require('../models/Card');
 
 // @desc    Git repositories available under REPOS_DIR
 // @route   GET /api/git/repos
@@ -15,6 +17,26 @@ exports.getRepos = async (req, res, next) => {
 exports.getBranches = async (req, res, next) => {
     try {
         res.status(200).json({ success: true, data: await gitService.listBranches(req.params.repo) });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Commit graph + branch stats (ahead/behind/merged vs base) and linked tickets
+// @route   GET /api/git/repos/:repo/graph?limit=150
+exports.getGraph = async (req, res, next) => {
+    try {
+        const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 150, 20), 500);
+        const graph = await gitService.getGraph(req.params.repo, limit);
+
+        // Tickets on boards using this repo that link one of its branches
+        const boards = await Board.find({ gitRepo: req.params.repo, isArchived: false }).select('_id name').lean();
+        const cards = await Card.find({ boardId: { $in: boards.map(b => b._id) }, branch: { $ne: null }, isArchived: false })
+            .select('_id title branch assignee boardId').lean();
+        const boardNames = new Map(boards.map(b => [String(b._id), b.name]));
+        graph.tickets = cards.map(c => ({ ...c, boardName: boardNames.get(String(c.boardId)) }));
+
+        res.status(200).json({ success: true, data: graph });
     } catch (error) {
         next(error);
     }
