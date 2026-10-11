@@ -1,0 +1,61 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: soloslack-mongo
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27018:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: ./website/server
+      dockerfile: Dockerfile
+    container_name: soloslack-server
+    restart: unless-stopped
+    environment:
+      - PORT=5000
+      - MONGODB_URI=mongodb://mongo:27017/soloslack
+      - CORS_ORIGIN=*
+      # Lets the AI proxy reach local LLM servers (Ollama, LM Studio, Unsloth) on the host
+      - AI_PROXY_LOCALHOST_ALIAS=host.docker.internal
+      # Card attachments (agent screenshots, markdown reports)
+      - UPLOAD_DIR=/app/uploads
+      # Git repos for ticket branches; same path as on the host so worktrees resolve
+      - REPOS_DIR=${HOME}/projects
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - uploads_data:/app/uploads
+      - ${HOME}/projects:${HOME}/projects
+    ports:
+      - "5005:5000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  client:
+    build:
+      context: ./website/client
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=http://localhost:5005/api
+    container_name: soloslack-client
+    restart: unless-stopped
+    environment:
+      - PORT=3000
+      - NEXT_PUBLIC_API_URL=http://localhost:5005/api
+    ports:
+      - "3005:3000"
+    depends_on:
+      - server
+
+volumes:
+  mongo_data:
+  uploads_data:

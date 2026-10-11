@@ -43,9 +43,9 @@ exports.getEnv = async (req, res, next) => {
         res.status(200).json({
             success: true,
             data: {
-                MONGODB_URI: env.MONGODB_URI || '',
-                PORT: env.PORT || '5000',
-                NODE_ENV: env.NODE_ENV || 'development'
+                MONGODB_URI: env.MONGODB_URI || process.env.MONGODB_URI || '',
+                PORT: env.PORT || process.env.PORT || '5000',
+                NODE_ENV: env.NODE_ENV || process.env.NODE_ENV || 'development'
             }
         });
     } catch (error) {
