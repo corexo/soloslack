@@ -402,642 +402,646 @@ export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete, g
     if (!card) return null;
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Task Detail">
-            <div className="space-y-5">
-
-                {/* Title */}
-                <section>
-                    <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-xs font-semibold text-text-muted uppercase">Title</label>
-                        {saveStatus === 'saving' && (
-                            <span className="text-[10px] text-text-muted animate-pulse">Saving…</span>
-                        )}
-                        {saveStatus === 'saved' && (
-                            <span className="text-[10px] text-green-400">Saved ✓</span>
-                        )}
-                        {saveStatus === 'error' && (
-                            <span className="text-[10px] text-red-400">Save failed</span>
-                        )}
-                    </div>
-                    <input
-                        type="text"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        className="w-full bg-surface-overlay border border-border-default rounded-md px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent transition-colors"
-                    />
-                </section>
-
-                {/* Priority */}
-                <section>
-                    <label className="block text-xs font-semibold text-text-muted uppercase mb-1.5">Priority</label>
-                    <div className="flex gap-2">
-                        {PRIORITIES.map((p) => (
-                            <button
-                                key={p}
-                                onClick={() => handlePriorityChange(p)}
-                                className={cn(
-                                    'flex-1 px-3 py-2 rounded-md text-xs font-medium border transition-all',
-                                    priority === p
-                                        ? p === 'low'
-                                            ? 'bg-green-500/20 border-green-500 text-green-400'
-                                            : p === 'medium'
-                                                ? 'bg-amber-500/20 border-amber-500 text-amber-400'
-                                                : 'bg-red-500/20 border-red-500 text-red-400'
-                                        : 'bg-surface-overlay border-border-default text-text-secondary hover:border-border-strong'
-                                )}
-                            >
-                                {p.charAt(0).toUpperCase() + p.slice(1)}
-                            </button>
-                        ))}
-                    </div>
-                </section>
-
-                {/* Assignee (AI agent) */}
-                <section>
-                    <label className="block text-xs font-semibold text-text-muted uppercase mb-1.5">
-                        <span className="flex items-center gap-1.5">
-                            <Bot className="w-3 h-3" /> Assigned Agent
-                        </span>
-                    </label>
-                    {agents.length === 0 && !assignee ? (
-                        <p className="text-[11px] text-text-muted">
-                            No agents yet — create one under <Link href="/settings" onClick={onClose} className="text-accent hover:underline">Settings → AI Agents</Link>.
-                        </p>
-                    ) : (
-                        <select
-                            value={assignee}
-                            onChange={handleAssigneeChange}
-                            className="w-full bg-surface-overlay border border-border-default rounded-md px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent transition-colors"
-                        >
-                            <option value="">Unassigned</option>
-                            {agents.map(a => (
-                                <option key={a._id} value={a.name}>{a.name}{a.description ? ` — ${a.description}` : ''}</option>
-                            ))}
-                            {assignee && !agents.some(a => a.name === assignee) && (
-                                <option value={assignee}>{assignee} (deleted)</option>
+        <Modal isOpen={isOpen} onClose={onClose} title="Task Detail" size="full" closeOnEscape={!confirmDelete && !isNotePickerOpen}>
+            {/* Two columns: content left, properties right (stacked on small screens) */}
+            <div className="flex flex-col lg:flex-row gap-8">
+                <div className="flex-1 min-w-0 space-y-6">
+                    {/* Title */}
+                    <section>
+                        <div className="flex items-center justify-between mb-1.5">
+                            <label className="text-xs font-semibold text-text-muted uppercase">Title</label>
+                            {saveStatus === 'saving' && (
+                                <span className="text-[10px] text-text-muted animate-pulse">Saving…</span>
                             )}
-                        </select>
-                    )}
-                </section>
-
-                {/* Git branch */}
-                <section>
-                    <label className="block text-xs font-semibold text-text-muted uppercase mb-1.5">
-                        <span className="flex items-center gap-1.5">
-                            <GitBranch className="w-3 h-3" /> Branch
-                        </span>
-                    </label>
-                    <CardBranch
-                        repo={gitRepo}
-                        branch={card.branch}
-                        cardTitle={title}
-                        onChange={(branch) => onUpdate(card._id, { branch })}
-                    />
-                </section>
-
-                {/* Due Date */}
-                <section>
-                    <label className="block text-xs font-semibold text-text-muted uppercase mb-1.5">
-                        <span className="flex items-center gap-1.5">
-                            <Calendar className="w-3 h-3" /> Due Date
-                        </span>
-                    </label>
-                    <input
-                        type="date"
-                        value={dueDate}
-                        onChange={handleDueDateChange}
-                        className="w-full bg-surface-overlay border border-border-default rounded-md px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent transition-colors"
-                    />
-                </section>
-
-                {/* Labels */}
-                <section>
-                    <label className="block text-xs font-semibold text-text-muted uppercase mb-2 flex items-center gap-1.5">
-                        <Tag className="w-3 h-3" />
-                        Labels
-                        {labels.length > 0 && (
-                            <span className="text-text-muted font-normal">{labels.length}/6</span>
-                        )}
-                    </label>
-
-                    {/* Existing labels */}
-                    {labels.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mb-2">
-                            {labels.map((label, i) => {
-                                const c = getLabelColor(label.color);
-                                return (
-                                    <span
-                                        key={i}
-                                        className={cn(
-                                            'inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full',
-                                            c.bg, c.text
-                                        )}
-                                    >
-                                        {label.text}
-                                        <button
-                                            onClick={() => handleLabelRemove(i)}
-                                            className="hover:opacity-70 transition-opacity"
-                                        >
-                                            <X className="w-2.5 h-2.5" />
-                                        </button>
-                                    </span>
-                                );
-                            })}
-                        </div>
-                    )}
-
-                    {/* Add label form */}
-                    {isLabelAdding ? (
-                        <div className="space-y-2 p-2 bg-surface-overlay/50 rounded-md border border-border-subtle">
-                            <input
-                                ref={labelInputRef}
-                                type="text"
-                                value={newLabelText}
-                                onChange={(e) => setNewLabelText(e.target.value)}
-                                onKeyDown={handleLabelKeyDown}
-                                placeholder="Label name"
-                                maxLength={30}
-                                className="w-full bg-surface-overlay border border-border-default rounded-md px-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent transition-colors"
-                                autoFocus
-                            />
-                            <div className="flex items-center gap-1.5">
-                                {LABEL_COLORS.map((c) => (
-                                    <button
-                                        key={c.key}
-                                        type="button"
-                                        onClick={() => setNewLabelColor(c.key)}
-                                        className={cn(
-                                            'w-5 h-5 rounded-full transition-all',
-                                            c.dot,
-                                            newLabelColor === c.key
-                                                ? 'ring-2 ring-offset-1 ring-offset-transparent ' + c.ring + ' scale-110'
-                                                : 'opacity-50 hover:opacity-80'
-                                        )}
-                                        title={c.key}
-                                    />
-                                ))}
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={handleLabelAdd}
-                                    disabled={!newLabelText.trim()}
-                                    className="px-3 py-1 rounded-md bg-accent/20 text-accent text-xs font-medium hover:bg-accent/30 transition-colors disabled:opacity-30"
-                                >
-                                    Add
-                                </button>
-                                <button
-                                    onClick={() => setIsLabelAdding(false)}
-                                    className="text-xs text-text-muted hover:text-text-primary transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-                        </div>
-                    ) : (
-                        labels.length < 6 && (
-                            <button
-                                onClick={() => setIsLabelAdding(true)}
-                                className="text-xs text-text-muted hover:text-accent transition-colors flex items-center gap-1"
-                            >
-                                <Plus className="w-3 h-3" /> Add label
-                            </button>
-                        )
-                    )}
-                </section>
-
-                {/* Description */}
-                <section>
-                    <div className="flex items-center justify-between mb-1.5">
-                        <div className="flex items-center gap-2">
-                            <label className="text-xs font-semibold text-text-muted uppercase">Description</label>
-                            {aiConfigured && (
-                                <button
-                                    type="button"
-                                    onClick={handleRefine}
-                                    disabled={aiGenerating || !title.trim()}
-                                    title="Write goal, acceptance criteria and checklist so an agent can work on it"
-                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20 hover:bg-purple-500/20 transition-colors disabled:opacity-30"
-                                >
-                                    <Sparkles className={cn('w-3 h-3', aiGenerating && 'animate-spin')} />
-                                    {aiGenerating ? 'Refining…' : description.trim() ? 'AI Refine' : 'AI Generate'}
-                                </button>
+                            {saveStatus === 'saved' && (
+                                <span className="text-[10px] text-green-400">Saved ✓</span>
+                            )}
+                            {saveStatus === 'error' && (
+                                <span className="text-[10px] text-red-400">Save failed</span>
                             )}
                         </div>
-                        <div className="flex bg-surface-overlay rounded-md p-0.5 border border-border-default">
-                            <button
-                                onClick={() => setMode('edit')}
-                                className={cn(
-                                    'px-2 py-0.5 text-[10px] rounded flex items-center gap-1 transition-colors',
-                                    mode === 'edit' ? 'bg-accent text-white' : 'text-text-secondary hover:text-text-primary'
-                                )}
-                            >
-                                <Edit3 className="w-2.5 h-2.5" /> Edit
-                            </button>
-                            <button
-                                onClick={() => setMode('preview')}
-                                className={cn(
-                                    'px-2 py-0.5 text-[10px] rounded flex items-center gap-1 transition-colors',
-                                    mode === 'preview' ? 'bg-accent text-white' : 'text-text-secondary hover:text-text-primary'
-                                )}
-                            >
-                                <Eye className="w-2.5 h-2.5" /> Preview
-                            </button>
-                        </div>
-                    </div>
-                    {refined && (
-                        <div className="mb-2 p-3 rounded-md border border-purple-500/30 bg-purple-500/5 space-y-2">
-                            <p className="text-[10px] font-semibold uppercase text-purple-400 flex items-center gap-1">
-                                <Sparkles className="w-3 h-3" /> AI proposal — replaces the description, open checklist items are replaced
-                            </p>
-                            <div className="max-h-[280px] overflow-y-auto">
-                                <MarkdownRenderer content={refined.description} compact />
-                                {refined.checklist.length > 0 && (
-                                    <ul className="mt-2 space-y-0.5">
-                                        {refined.checklist.map((t, i) => (
-                                            <li key={i} className="text-xs text-text-primary flex items-center gap-1.5">
-                                                <ListChecks className="w-3 h-3 text-purple-400 shrink-0" /> {t}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <button onClick={applyRefined} className="px-3 py-1 rounded-md bg-purple-500/20 text-purple-300 text-xs font-medium hover:bg-purple-500/30">
-                                    Apply
-                                </button>
-                                <button onClick={handleRefine} disabled={aiGenerating} className="text-xs text-text-muted hover:text-text-primary disabled:opacity-30">
-                                    Try again
-                                </button>
-                                <button onClick={() => setRefined(null)} className="text-xs text-text-muted hover:text-text-primary">
-                                    Discard
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                    {mode === 'edit' ? (
-                        <textarea
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            placeholder="Add a detailed description (markdown supported)…"
-                            className="w-full bg-surface-overlay border border-border-default rounded-md px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent min-h-[120px] resize-none font-mono"
-                        />
-                    ) : (
-                        <div className="min-h-[120px] p-3 bg-surface-overlay/30 border border-border-subtle rounded-md">
-                            {description ? (
-                                <MarkdownRenderer content={description} />
-                            ) : (
-                                <p className="text-sm text-text-muted italic">No description</p>
-                            )}
-                        </div>
-                    )}
-                </section>
-
-                {/* Attachments (on the ticket itself) */}
-                <section
-                    onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setIsDraggingFiles(true); } }}
-                    onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setIsDraggingFiles(false); }}
-                    onDrop={(e) => { e.preventDefault(); setIsDraggingFiles(false); handleAttachmentUpload(e.dataTransfer.files); }}
-                    onPaste={(e) => { if (e.clipboardData?.files?.length) { e.preventDefault(); handleAttachmentUpload(e.clipboardData.files); } }}
-                    className={cn('rounded-md transition-colors', isDraggingFiles && 'ring-2 ring-accent/50 bg-accent/5')}
-                >
-                    <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-xs font-semibold text-text-muted uppercase flex items-center gap-1.5">
-                            <Paperclip className="w-3.5 h-3.5" /> Attachments
-                            {attachments.length > 0 && <span className="font-normal">{attachments.length}</span>}
-                        </label>
-                        <button
-                            type="button"
-                            onClick={() => attachmentInputRef.current?.click()}
-                            disabled={uploadingAttachments}
-                            className="text-xs text-text-muted hover:text-accent transition-colors flex items-center gap-1 disabled:opacity-40"
-                        >
-                            {uploadingAttachments
-                                ? <div className="w-3 h-3 border border-accent/30 border-t-accent rounded-full animate-spin" />
-                                : <Plus className="w-3 h-3" />}
-                            Add files
-                        </button>
                         <input
-                            ref={attachmentInputRef}
-                            type="file"
-                            multiple
-                            className="hidden"
-                            onChange={(e) => { handleAttachmentUpload(e.target.files); e.target.value = ''; }}
-                        />
-                    </div>
-                    {attachments.length > 0 ? (
-                        <CommentAttachments attachments={attachments} onDelete={handleAttachmentDelete} />
-                    ) : (
-                        <button
-                            type="button"
-                            onClick={() => attachmentInputRef.current?.click()}
-                            className="w-full py-3 border border-dashed border-border-default rounded-md text-[11px] text-text-muted hover:text-text-primary hover:border-accent transition-all"
-                        >
-                            Drop files here, paste a screenshot or click to upload (specs, mockups, logs…)
-                        </button>
-                    )}
-                </section>
-
-                {/* Checklist */}
-                <section>
-                    <div className="flex items-center justify-between mb-2">
-                        <label className="text-xs font-semibold text-text-muted uppercase flex items-center gap-1.5">
-                            <CheckSquare className="w-3.5 h-3.5" />
-                            Checklist
-                            {checklist.length > 0 && (
-                                <span className="text-text-muted font-normal">
-                                    {checklist.filter(i => i.completed).length}/{checklist.length}
-                                </span>
-                            )}
-                        </label>
-                    </div>
-
-                    {/* Progress bar */}
-                    {checklist.length > 0 && (
-                        <div className="mb-3 h-1.5 bg-surface-overlay rounded-full overflow-hidden">
-                            <div
-                                className="h-full rounded-full transition-all duration-300"
-                                style={{
-                                    width: `${Math.round((checklist.filter(i => i.completed).length / checklist.length) * 100)}%`,
-                                    backgroundColor: checklist.every(i => i.completed) ? '#4ade80' : '#818cf8',
-                                }}
-                            />
-                        </div>
-                    )}
-
-                    {/* Items */}
-                    <div className="space-y-1 mb-2">
-                        {checklist.map((item, idx) => (
-                            <div key={idx} className="flex items-center gap-2 group px-1 py-0.5 rounded hover:bg-surface-overlay/50">
-                                <input
-                                    type="checkbox"
-                                    checked={item.completed}
-                                    onChange={() => handleChecklistToggle(idx)}
-                                    className="accent-accent w-3.5 h-3.5 shrink-0 cursor-pointer"
-                                />
-                                <span className={cn(
-                                    'text-sm flex-1',
-                                    item.completed ? 'line-through text-text-muted' : 'text-text-primary'
-                                )}>
-                                    {item.text}
-                                </span>
-                                <button
-                                    onClick={() => handleChecklistDelete(idx)}
-                                    className="opacity-0 group-hover:opacity-100 text-text-muted hover:text-red-400 transition-all"
-                                >
-                                    <X className="w-3 h-3" />
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Add new item */}
-                    <div className="flex items-center gap-2">
-                        <input
-                            ref={newItemRef}
                             type="text"
-                            value={newItemText}
-                            onChange={(e) => setNewItemText(e.target.value)}
-                            onKeyDown={handleNewItemKeyDown}
-                            placeholder="Add an item…"
-                            className="flex-1 bg-surface-overlay border border-border-default rounded-md px-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent transition-colors"
+                            value={title}
+                            onChange={(e) => setTitle(e.target.value)}
+                            className="w-full bg-surface-overlay border border-border-default rounded-md px-3 py-2 text-lg font-semibold text-text-primary focus:outline-none focus:border-accent transition-colors"
                         />
-                        <button
-                            onClick={handleChecklistAdd}
-                            disabled={!newItemText.trim()}
-                            className="p-1.5 rounded-md bg-accent/10 text-accent hover:bg-accent/20 transition-colors disabled:opacity-30"
-                        >
-                            <Plus className="w-3.5 h-3.5" />
-                        </button>
-                    </div>
-                </section>
+                    </section>
 
-                {/* Comments */}
-                <section>
-                    <label className="block text-xs font-semibold text-text-muted uppercase mb-2 flex items-center gap-1.5">
-                        <MessageSquare className="w-3.5 h-3.5" />
-                        Comments
-                        {comments.length > 0 && (
-                            <span className="text-text-muted font-normal">{comments.length}</span>
+                    {/* Description */}
+                    <section>
+                        <div className="flex items-center justify-between mb-1.5">
+                            <div className="flex items-center gap-2">
+                                <label className="text-xs font-semibold text-text-muted uppercase">Description</label>
+                                {aiConfigured && (
+                                    <button
+                                        type="button"
+                                        onClick={handleRefine}
+                                        disabled={aiGenerating || !title.trim()}
+                                        title="Write goal, acceptance criteria and checklist so an agent can work on it"
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20 hover:bg-purple-500/20 transition-colors disabled:opacity-30"
+                                    >
+                                        <Sparkles className={cn('w-3 h-3', aiGenerating && 'animate-spin')} />
+                                        {aiGenerating ? 'Refining…' : description.trim() ? 'AI Refine' : 'AI Generate'}
+                                    </button>
+                                )}
+                            </div>
+                            <div className="flex bg-surface-overlay rounded-md p-0.5 border border-border-default">
+                                <button
+                                    onClick={() => setMode('edit')}
+                                    className={cn(
+                                        'px-2 py-0.5 text-[10px] rounded flex items-center gap-1 transition-colors',
+                                        mode === 'edit' ? 'bg-accent text-white' : 'text-text-secondary hover:text-text-primary'
+                                    )}
+                                >
+                                    <Edit3 className="w-2.5 h-2.5" /> Edit
+                                </button>
+                                <button
+                                    onClick={() => setMode('preview')}
+                                    className={cn(
+                                        'px-2 py-0.5 text-[10px] rounded flex items-center gap-1 transition-colors',
+                                        mode === 'preview' ? 'bg-accent text-white' : 'text-text-secondary hover:text-text-primary'
+                                    )}
+                                >
+                                    <Eye className="w-2.5 h-2.5" /> Preview
+                                </button>
+                            </div>
+                        </div>
+                        {refined && (
+                            <div className="mb-2 p-3 rounded-md border border-purple-500/30 bg-purple-500/5 space-y-2">
+                                <p className="text-[10px] font-semibold uppercase text-purple-400 flex items-center gap-1">
+                                    <Sparkles className="w-3 h-3" /> AI proposal — replaces the description, open checklist items are replaced
+                                </p>
+                                <div className="max-h-[280px] overflow-y-auto">
+                                    <MarkdownRenderer content={refined.description} compact />
+                                    {refined.checklist.length > 0 && (
+                                        <ul className="mt-2 space-y-0.5">
+                                            {refined.checklist.map((t, i) => (
+                                                <li key={i} className="text-xs text-text-primary flex items-center gap-1.5">
+                                                    <ListChecks className="w-3 h-3 text-purple-400 shrink-0" /> {t}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={applyRefined} className="px-3 py-1 rounded-md bg-purple-500/20 text-purple-300 text-xs font-medium hover:bg-purple-500/30">
+                                        Apply
+                                    </button>
+                                    <button onClick={handleRefine} disabled={aiGenerating} className="text-xs text-text-muted hover:text-text-primary disabled:opacity-30">
+                                        Try again
+                                    </button>
+                                    <button onClick={() => setRefined(null)} className="text-xs text-text-muted hover:text-text-primary">
+                                        Discard
+                                    </button>
+                                </div>
+                            </div>
                         )}
-                        {aiConfigured && comments.length > 1 && (
+                        {mode === 'edit' ? (
+                            <textarea
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                                placeholder="Add a detailed description (markdown supported)…"
+                                className="w-full bg-surface-overlay border border-border-default rounded-md px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent min-h-[240px] resize-y font-mono"
+                            />
+                        ) : (
+                            <div className="min-h-[240px] p-4 bg-surface-overlay/30 border border-border-subtle rounded-md">
+                                {description ? (
+                                    <MarkdownRenderer content={description} />
+                                ) : (
+                                    <p className="text-sm text-text-muted italic">No description</p>
+                                )}
+                            </div>
+                        )}
+                    </section>
+
+                    {/* Attachments (on the ticket itself) */}
+                    <section
+                        onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setIsDraggingFiles(true); } }}
+                        onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setIsDraggingFiles(false); }}
+                        onDrop={(e) => { e.preventDefault(); setIsDraggingFiles(false); handleAttachmentUpload(e.dataTransfer.files); }}
+                        onPaste={(e) => { if (e.clipboardData?.files?.length) { e.preventDefault(); handleAttachmentUpload(e.clipboardData.files); } }}
+                        className={cn('rounded-md transition-colors', isDraggingFiles && 'ring-2 ring-accent/50 bg-accent/5')}
+                    >
+                        <div className="flex items-center justify-between mb-1.5">
+                            <label className="text-xs font-semibold text-text-muted uppercase flex items-center gap-1.5">
+                                <Paperclip className="w-3.5 h-3.5" /> Attachments
+                                {attachments.length > 0 && <span className="font-normal">{attachments.length}</span>}
+                            </label>
                             <button
                                 type="button"
-                                onClick={handleSummarizeThread}
-                                disabled={summarizing}
-                                className="ml-auto normal-case inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20 hover:bg-purple-500/20 transition-colors disabled:opacity-30"
+                                onClick={() => attachmentInputRef.current?.click()}
+                                disabled={uploadingAttachments}
+                                className="text-xs text-text-muted hover:text-accent transition-colors flex items-center gap-1 disabled:opacity-40"
                             >
-                                <Sparkles className={cn('w-3 h-3', summarizing && 'animate-spin')} />
-                                {summarizing ? 'Summarizing…' : 'Summarize'}
-                            </button>
-                        )}
-                    </label>
-
-                    {threadSummary && (
-                        <div className="mb-3 p-3 rounded-md border border-purple-500/30 bg-purple-500/5">
-                            <MarkdownRenderer content={threadSummary} compact />
-                            <div className="flex items-center gap-3 mt-2">
-                                <button onClick={postSummaryAsComment} className="text-[11px] text-purple-300 hover:text-purple-200 font-medium">
-                                    Post as comment
-                                </button>
-                                <button onClick={() => setThreadSummary('')} className="text-[11px] text-text-muted hover:text-text-primary">
-                                    Close
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* New comment input */}
-                    <div className="flex items-start gap-2 mb-2">
-                        <textarea
-                            ref={commentInputRef}
-                            value={newComment}
-                            onChange={(e) => setNewComment(e.target.value)}
-                            onPaste={handleCommentPaste}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleCommentAdd(); }
-                            }}
-                            placeholder="Add a comment… (Markdown, paste screenshots)"
-                            rows={2}
-                            className="flex-1 bg-surface-overlay border border-border-default rounded-md px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent transition-colors resize-none"
-                        />
-                        <div className="flex flex-col gap-1 shrink-0 mt-0.5">
-                            <button
-                                onClick={handleCommentAdd}
-                                disabled={(!newComment.trim() && !commentFiles.length) || isPostingComment}
-                                className="p-2 rounded-md bg-accent/10 text-accent hover:bg-accent/20 transition-colors disabled:opacity-30"
-                                title="Post comment"
-                            >
-                                {isPostingComment
-                                    ? <div className="w-3.5 h-3.5 border border-accent/30 border-t-accent rounded-full animate-spin" />
-                                    : <Send className="w-3.5 h-3.5" />}
-                            </button>
-                            <button
-                                onClick={() => commentFileRef.current?.click()}
-                                className="p-2 rounded-md text-text-muted hover:text-accent hover:bg-accent/10 transition-colors"
-                                title="Attach files (screenshots, markdown)"
-                            >
-                                <Paperclip className="w-3.5 h-3.5" />
+                                {uploadingAttachments
+                                    ? <div className="w-3 h-3 border border-accent/30 border-t-accent rounded-full animate-spin" />
+                                    : <Plus className="w-3 h-3" />}
+                                Add files
                             </button>
                             <input
-                                ref={commentFileRef}
+                                ref={attachmentInputRef}
                                 type="file"
                                 multiple
                                 className="hidden"
-                                onChange={(e) => { addCommentFiles(e.target.files); e.target.value = ''; }}
+                                onChange={(e) => { handleAttachmentUpload(e.target.files); e.target.value = ''; }}
                             />
                         </div>
-                    </div>
-                    {commentFiles.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mb-2">
-                            {commentFiles.map((f, i) => (
-                                <span key={i} className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent">
-                                    <Paperclip className="w-2.5 h-2.5" />
-                                    <span className="max-w-[140px] truncate">{f.name}</span>
-                                    <button onClick={() => setCommentFiles(prev => prev.filter((_, j) => j !== i))} className="hover:text-red-400">
-                                        <X className="w-2.5 h-2.5" />
-                                    </button>
-                                </span>
-                            ))}
-                        </div>
-                    )}
+                        {attachments.length > 0 ? (
+                            <CommentAttachments attachments={attachments} onDelete={handleAttachmentDelete} />
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={() => attachmentInputRef.current?.click()}
+                                className="w-full py-3 border border-dashed border-border-default rounded-md text-[11px] text-text-muted hover:text-text-primary hover:border-accent transition-all"
+                            >
+                                Drop files here, paste a screenshot or click to upload (specs, mockups, logs…)
+                            </button>
+                        )}
+                    </section>
 
-                    {/* Comments list */}
-                    {commentsLoading ? (
-                        <p className="text-[10px] text-text-muted italic">Loading comments…</p>
-                    ) : comments.length === 0 ? (
-                        <p className="text-[10px] text-text-muted italic">No comments yet</p>
-                    ) : (
-                        <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
-                            {comments.map(comment => (
+                    {/* Checklist */}
+                    <section>
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs font-semibold text-text-muted uppercase flex items-center gap-1.5">
+                                <CheckSquare className="w-3.5 h-3.5" />
+                                Checklist
+                                {checklist.length > 0 && (
+                                    <span className="text-text-muted font-normal">
+                                        {checklist.filter(i => i.completed).length}/{checklist.length}
+                                    </span>
+                                )}
+                            </label>
+                        </div>
+
+                        {/* Progress bar */}
+                        {checklist.length > 0 && (
+                            <div className="mb-3 h-1.5 bg-surface-overlay rounded-full overflow-hidden">
                                 <div
-                                    key={comment._id}
-                                    className={cn(
-                                        'group border rounded-md px-3 py-2',
-                                        comment.authorType === 'agent'
-                                            ? 'bg-sky-500/5 border-sky-500/20'
-                                            : 'bg-surface-overlay/50 border-border-subtle'
-                                    )}
-                                >
-                                    {editingCommentId === comment._id ? (
-                                        <div className="space-y-1.5">
-                                            <textarea
-                                                value={editingCommentBody}
-                                                onChange={(e) => setEditingCommentBody(e.target.value)}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleCommentUpdate(comment._id); }
-                                                    if (e.key === 'Escape') { setEditingCommentId(null); }
-                                                }}
-                                                rows={2}
-                                                className="w-full bg-surface-overlay border border-accent rounded-md px-2 py-1.5 text-xs text-text-primary focus:outline-none resize-none"
-                                                autoFocus
-                                            />
-                                            <div className="flex items-center gap-2">
-                                                <button
-                                                    onClick={() => handleCommentUpdate(comment._id)}
-                                                    disabled={!editingCommentBody.trim()}
-                                                    className="px-2.5 py-1 rounded-md bg-accent/20 text-accent text-[11px] font-medium hover:bg-accent/30 transition-colors disabled:opacity-30"
-                                                >
-                                                    Save
-                                                </button>
-                                                <button
-                                                    onClick={() => setEditingCommentId(null)}
-                                                    className="text-[11px] text-text-muted hover:text-text-primary transition-colors"
-                                                >
-                                                    Cancel
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            {comment.authorType === 'agent' && (
-                                                <div className="flex items-center gap-1 mb-1 text-[10px] font-semibold text-sky-400">
-                                                    <Bot className="w-3 h-3" /> {comment.author}
-                                                </div>
-                                            )}
-                                            {comment.body && (
-                                                <MarkdownRenderer content={comment.body} compact />
-                                            )}
-                                            <CommentAttachments attachments={comment.attachments} />
-                                            <div className="flex items-center justify-between mt-1.5">
-                                                <span className="text-[10px] text-text-muted">
-                                                    {timeAgo(comment.createdAt)}
-                                                    {comment.updatedAt !== comment.createdAt && ' (edited)'}
-                                                </span>
-                                                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button
-                                                        onClick={() => { setEditingCommentId(comment._id); setEditingCommentBody(comment.body); }}
-                                                        className="text-text-muted hover:text-accent transition-colors"
-                                                        title="Edit"
-                                                    >
-                                                        <Pencil className="w-3 h-3" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleCommentDelete(comment._id)}
-                                                        className="text-text-muted hover:text-red-400 transition-colors"
-                                                        title="Delete"
-                                                    >
-                                                        <Trash2 className="w-3 h-3" />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
+                                    className="h-full rounded-full transition-all duration-300"
+                                    style={{
+                                        width: `${Math.round((checklist.filter(i => i.completed).length / checklist.length) * 100)}%`,
+                                        backgroundColor: checklist.every(i => i.completed) ? '#4ade80' : '#818cf8',
+                                    }}
+                                />
+                            </div>
+                        )}
+
+                        {/* Items */}
+                        <div className="space-y-1 mb-2">
+                            {checklist.map((item, idx) => (
+                                <div key={idx} className="flex items-center gap-2 group px-1 py-0.5 rounded hover:bg-surface-overlay/50">
+                                    <input
+                                        type="checkbox"
+                                        checked={item.completed}
+                                        onChange={() => handleChecklistToggle(idx)}
+                                        className="accent-accent w-3.5 h-3.5 shrink-0 cursor-pointer"
+                                    />
+                                    <span className={cn(
+                                        'text-sm flex-1',
+                                        item.completed ? 'line-through text-text-muted' : 'text-text-primary'
+                                    )}>
+                                        {item.text}
+                                    </span>
+                                    <button
+                                        onClick={() => handleChecklistDelete(idx)}
+                                        className="opacity-0 group-hover:opacity-100 text-text-muted hover:text-red-400 transition-all"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
                                 </div>
                             ))}
                         </div>
-                    )}
-                </section>
 
-                {/* Linked Note */}
-                <section className="bg-surface-base/50 p-4 rounded-lg border border-border-subtle">
-                    <label className="block text-xs font-semibold text-text-muted uppercase mb-2">Linked Note</label>
-                    {card.linkedNoteId ? (
-                        <div className="flex items-center justify-between p-2 bg-accent/5 border border-accent/20 rounded-md">
-                            <Link
-                                href="/notes"
-                                onClick={onClose}
-                                className="flex items-center gap-2 hover:opacity-80 transition-opacity min-w-0"
-                            >
-                                <FileText className="w-4 h-4 text-accent shrink-0" />
-                                <span className="text-sm font-medium text-accent truncate">
-                                    {linkedNoteLoading ? 'Loading…' : linkedNote?.title || 'Linked Note'}
-                                </span>
-                            </Link>
+                        {/* Add new item */}
+                        <div className="flex items-center gap-2">
+                            <input
+                                ref={newItemRef}
+                                type="text"
+                                value={newItemText}
+                                onChange={(e) => setNewItemText(e.target.value)}
+                                onKeyDown={handleNewItemKeyDown}
+                                placeholder="Add an item…"
+                                className="flex-1 bg-surface-overlay border border-border-default rounded-md px-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent transition-colors"
+                            />
                             <button
-                                onClick={handleUnlinkNote}
-                                className="text-xs text-text-muted hover:text-red-400 transition-colors shrink-0 ml-2"
+                                onClick={handleChecklistAdd}
+                                disabled={!newItemText.trim()}
+                                className="p-1.5 rounded-md bg-accent/10 text-accent hover:bg-accent/20 transition-colors disabled:opacity-30"
                             >
-                                Unlink
+                                <Plus className="w-3.5 h-3.5" />
                             </button>
                         </div>
-                    ) : (
+                    </section>
+
+                    {/* Comments */}
+                    <section>
+                        <label className="block text-xs font-semibold text-text-muted uppercase mb-2 flex items-center gap-1.5">
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            Comments
+                            {comments.length > 0 && (
+                                <span className="text-text-muted font-normal">{comments.length}</span>
+                            )}
+                            {aiConfigured && comments.length > 1 && (
+                                <button
+                                    type="button"
+                                    onClick={handleSummarizeThread}
+                                    disabled={summarizing}
+                                    className="ml-auto normal-case inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20 hover:bg-purple-500/20 transition-colors disabled:opacity-30"
+                                >
+                                    <Sparkles className={cn('w-3 h-3', summarizing && 'animate-spin')} />
+                                    {summarizing ? 'Summarizing…' : 'Summarize'}
+                                </button>
+                            )}
+                        </label>
+
+                        {threadSummary && (
+                            <div className="mb-3 p-3 rounded-md border border-purple-500/30 bg-purple-500/5">
+                                <MarkdownRenderer content={threadSummary} compact />
+                                <div className="flex items-center gap-3 mt-2">
+                                    <button onClick={postSummaryAsComment} className="text-[11px] text-purple-300 hover:text-purple-200 font-medium">
+                                        Post as comment
+                                    </button>
+                                    <button onClick={() => setThreadSummary('')} className="text-[11px] text-text-muted hover:text-text-primary">
+                                        Close
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* New comment input */}
+                        <div className="flex items-start gap-2 mb-2">
+                            <textarea
+                                ref={commentInputRef}
+                                value={newComment}
+                                onChange={(e) => setNewComment(e.target.value)}
+                                onPaste={handleCommentPaste}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleCommentAdd(); }
+                                }}
+                                placeholder="Add a comment… (Markdown, paste screenshots)"
+                                rows={2}
+                                className="flex-1 bg-surface-overlay border border-border-default rounded-md px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent transition-colors resize-none"
+                            />
+                            <div className="flex flex-col gap-1 shrink-0 mt-0.5">
+                                <button
+                                    onClick={handleCommentAdd}
+                                    disabled={(!newComment.trim() && !commentFiles.length) || isPostingComment}
+                                    className="p-2 rounded-md bg-accent/10 text-accent hover:bg-accent/20 transition-colors disabled:opacity-30"
+                                    title="Post comment"
+                                >
+                                    {isPostingComment
+                                        ? <div className="w-3.5 h-3.5 border border-accent/30 border-t-accent rounded-full animate-spin" />
+                                        : <Send className="w-3.5 h-3.5" />}
+                                </button>
+                                <button
+                                    onClick={() => commentFileRef.current?.click()}
+                                    className="p-2 rounded-md text-text-muted hover:text-accent hover:bg-accent/10 transition-colors"
+                                    title="Attach files (screenshots, markdown)"
+                                >
+                                    <Paperclip className="w-3.5 h-3.5" />
+                                </button>
+                                <input
+                                    ref={commentFileRef}
+                                    type="file"
+                                    multiple
+                                    className="hidden"
+                                    onChange={(e) => { addCommentFiles(e.target.files); e.target.value = ''; }}
+                                />
+                            </div>
+                        </div>
+                        {commentFiles.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mb-2">
+                                {commentFiles.map((f, i) => (
+                                    <span key={i} className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent">
+                                        <Paperclip className="w-2.5 h-2.5" />
+                                        <span className="max-w-[140px] truncate">{f.name}</span>
+                                        <button onClick={() => setCommentFiles(prev => prev.filter((_, j) => j !== i))} className="hover:text-red-400">
+                                            <X className="w-2.5 h-2.5" />
+                                        </button>
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Comments list */}
+                        {commentsLoading ? (
+                            <p className="text-[10px] text-text-muted italic">Loading comments…</p>
+                        ) : comments.length === 0 ? (
+                            <p className="text-[10px] text-text-muted italic">No comments yet</p>
+                        ) : (
+                            <div className="space-y-2">
+                                {comments.map(comment => (
+                                    <div
+                                        key={comment._id}
+                                        className={cn(
+                                            'group border rounded-md px-3 py-2',
+                                            comment.authorType === 'agent'
+                                                ? 'bg-sky-500/5 border-sky-500/20'
+                                                : 'bg-surface-overlay/50 border-border-subtle'
+                                        )}
+                                    >
+                                        {editingCommentId === comment._id ? (
+                                            <div className="space-y-1.5">
+                                                <textarea
+                                                    value={editingCommentBody}
+                                                    onChange={(e) => setEditingCommentBody(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleCommentUpdate(comment._id); }
+                                                        if (e.key === 'Escape') { setEditingCommentId(null); }
+                                                    }}
+                                                    rows={2}
+                                                    className="w-full bg-surface-overlay border border-accent rounded-md px-2 py-1.5 text-xs text-text-primary focus:outline-none resize-none"
+                                                    autoFocus
+                                                />
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        onClick={() => handleCommentUpdate(comment._id)}
+                                                        disabled={!editingCommentBody.trim()}
+                                                        className="px-2.5 py-1 rounded-md bg-accent/20 text-accent text-[11px] font-medium hover:bg-accent/30 transition-colors disabled:opacity-30"
+                                                    >
+                                                        Save
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setEditingCommentId(null)}
+                                                        className="text-[11px] text-text-muted hover:text-text-primary transition-colors"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                {comment.authorType === 'agent' && (
+                                                    <div className="flex items-center gap-1 mb-1 text-[10px] font-semibold text-sky-400">
+                                                        <Bot className="w-3 h-3" /> {comment.author}
+                                                    </div>
+                                                )}
+                                                {comment.body && (
+                                                    <MarkdownRenderer content={comment.body} compact />
+                                                )}
+                                                <CommentAttachments attachments={comment.attachments} />
+                                                <div className="flex items-center justify-between mt-1.5">
+                                                    <span className="text-[10px] text-text-muted">
+                                                        {timeAgo(comment.createdAt)}
+                                                        {comment.updatedAt !== comment.createdAt && ' (edited)'}
+                                                    </span>
+                                                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <button
+                                                            onClick={() => { setEditingCommentId(comment._id); setEditingCommentBody(comment.body); }}
+                                                            className="text-text-muted hover:text-accent transition-colors"
+                                                            title="Edit"
+                                                        >
+                                                            <Pencil className="w-3 h-3" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleCommentDelete(comment._id)}
+                                                            className="text-text-muted hover:text-red-400 transition-colors"
+                                                            title="Delete"
+                                                        >
+                                                            <Trash2 className="w-3 h-3" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </section>
+                </div>
+
+                <aside className="lg:w-80 xl:w-96 shrink-0 space-y-5 lg:border-l lg:border-border-subtle lg:pl-8 lg:sticky lg:top-0 lg:self-start">
+                    {/* Priority */}
+                    <section>
+                        <label className="block text-xs font-semibold text-text-muted uppercase mb-1.5">Priority</label>
+                        <div className="flex gap-2">
+                            {PRIORITIES.map((p) => (
+                                <button
+                                    key={p}
+                                    onClick={() => handlePriorityChange(p)}
+                                    className={cn(
+                                        'flex-1 px-3 py-2 rounded-md text-xs font-medium border transition-all',
+                                        priority === p
+                                            ? p === 'low'
+                                                ? 'bg-green-500/20 border-green-500 text-green-400'
+                                                : p === 'medium'
+                                                    ? 'bg-amber-500/20 border-amber-500 text-amber-400'
+                                                    : 'bg-red-500/20 border-red-500 text-red-400'
+                                            : 'bg-surface-overlay border-border-default text-text-secondary hover:border-border-strong'
+                                    )}
+                                >
+                                    {p.charAt(0).toUpperCase() + p.slice(1)}
+                                </button>
+                            ))}
+                        </div>
+                    </section>
+
+                    {/* Assignee (AI agent) */}
+                    <section>
+                        <label className="block text-xs font-semibold text-text-muted uppercase mb-1.5">
+                            <span className="flex items-center gap-1.5">
+                                <Bot className="w-3 h-3" /> Assigned Agent
+                            </span>
+                        </label>
+                        {agents.length === 0 && !assignee ? (
+                            <p className="text-[11px] text-text-muted">
+                                No agents yet — create one under <Link href="/settings" onClick={onClose} className="text-accent hover:underline">Settings → AI Agents</Link>.
+                            </p>
+                        ) : (
+                            <select
+                                value={assignee}
+                                onChange={handleAssigneeChange}
+                                className="w-full bg-surface-overlay border border-border-default rounded-md px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent transition-colors"
+                            >
+                                <option value="">Unassigned</option>
+                                {agents.map(a => (
+                                    <option key={a._id} value={a.name}>{a.name}{a.description ? ` — ${a.description}` : ''}</option>
+                                ))}
+                                {assignee && !agents.some(a => a.name === assignee) && (
+                                    <option value={assignee}>{assignee} (deleted)</option>
+                                )}
+                            </select>
+                        )}
+                    </section>
+
+                    {/* Git branch */}
+                    <section>
+                        <label className="block text-xs font-semibold text-text-muted uppercase mb-1.5">
+                            <span className="flex items-center gap-1.5">
+                                <GitBranch className="w-3 h-3" /> Branch
+                            </span>
+                        </label>
+                        <CardBranch
+                            repo={gitRepo}
+                            branch={card.branch}
+                            cardTitle={title}
+                            onChange={(branch) => onUpdate(card._id, { branch })}
+                        />
+                    </section>
+
+                    {/* Due Date */}
+                    <section>
+                        <label className="block text-xs font-semibold text-text-muted uppercase mb-1.5">
+                            <span className="flex items-center gap-1.5">
+                                <Calendar className="w-3 h-3" /> Due Date
+                            </span>
+                        </label>
+                        <input
+                            type="date"
+                            value={dueDate}
+                            onChange={handleDueDateChange}
+                            className="w-full bg-surface-overlay border border-border-default rounded-md px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent transition-colors"
+                        />
+                    </section>
+
+                    {/* Labels */}
+                    <section>
+                        <label className="block text-xs font-semibold text-text-muted uppercase mb-2 flex items-center gap-1.5">
+                            <Tag className="w-3 h-3" />
+                            Labels
+                            {labels.length > 0 && (
+                                <span className="text-text-muted font-normal">{labels.length}/6</span>
+                            )}
+                        </label>
+
+                        {/* Existing labels */}
+                        {labels.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mb-2">
+                                {labels.map((label, i) => {
+                                    const c = getLabelColor(label.color);
+                                    return (
+                                        <span
+                                            key={i}
+                                            className={cn(
+                                                'inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full',
+                                                c.bg, c.text
+                                            )}
+                                        >
+                                            {label.text}
+                                            <button
+                                                onClick={() => handleLabelRemove(i)}
+                                                className="hover:opacity-70 transition-opacity"
+                                            >
+                                                <X className="w-2.5 h-2.5" />
+                                            </button>
+                                        </span>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* Add label form */}
+                        {isLabelAdding ? (
+                            <div className="space-y-2 p-2 bg-surface-overlay/50 rounded-md border border-border-subtle">
+                                <input
+                                    ref={labelInputRef}
+                                    type="text"
+                                    value={newLabelText}
+                                    onChange={(e) => setNewLabelText(e.target.value)}
+                                    onKeyDown={handleLabelKeyDown}
+                                    placeholder="Label name"
+                                    maxLength={30}
+                                    className="w-full bg-surface-overlay border border-border-default rounded-md px-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent transition-colors"
+                                    autoFocus
+                                />
+                                <div className="flex items-center gap-1.5">
+                                    {LABEL_COLORS.map((c) => (
+                                        <button
+                                            key={c.key}
+                                            type="button"
+                                            onClick={() => setNewLabelColor(c.key)}
+                                            className={cn(
+                                                'w-5 h-5 rounded-full transition-all',
+                                                c.dot,
+                                                newLabelColor === c.key
+                                                    ? 'ring-2 ring-offset-1 ring-offset-transparent ' + c.ring + ' scale-110'
+                                                    : 'opacity-50 hover:opacity-80'
+                                            )}
+                                            title={c.key}
+                                        />
+                                    ))}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={handleLabelAdd}
+                                        disabled={!newLabelText.trim()}
+                                        className="px-3 py-1 rounded-md bg-accent/20 text-accent text-xs font-medium hover:bg-accent/30 transition-colors disabled:opacity-30"
+                                    >
+                                        Add
+                                    </button>
+                                    <button
+                                        onClick={() => setIsLabelAdding(false)}
+                                        className="text-xs text-text-muted hover:text-text-primary transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            labels.length < 6 && (
+                                <button
+                                    onClick={() => setIsLabelAdding(true)}
+                                    className="text-xs text-text-muted hover:text-accent transition-colors flex items-center gap-1"
+                                >
+                                    <Plus className="w-3 h-3" /> Add label
+                                </button>
+                            )
+                        )}
+                    </section>
+
+                    {/* Linked Note */}
+                    <section className="bg-surface-base/50 p-4 rounded-lg border border-border-subtle">
+                        <label className="block text-xs font-semibold text-text-muted uppercase mb-2">Linked Note</label>
+                        {card.linkedNoteId ? (
+                            <div className="flex items-center justify-between p-2 bg-accent/5 border border-accent/20 rounded-md">
+                                <Link
+                                    href="/notes"
+                                    onClick={onClose}
+                                    className="flex items-center gap-2 hover:opacity-80 transition-opacity min-w-0"
+                                >
+                                    <FileText className="w-4 h-4 text-accent shrink-0" />
+                                    <span className="text-sm font-medium text-accent truncate">
+                                        {linkedNoteLoading ? 'Loading…' : linkedNote?.title || 'Linked Note'}
+                                    </span>
+                                </Link>
+                                <button
+                                    onClick={handleUnlinkNote}
+                                    className="text-xs text-text-muted hover:text-red-400 transition-colors shrink-0 ml-2"
+                                >
+                                    Unlink
+                                </button>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={() => setIsNotePickerOpen(true)}
+                                className="w-full py-2 border border-dashed border-border-default rounded-md text-xs text-text-muted hover:text-text-primary hover:border-accent transition-all"
+                            >
+                                + Link to a Note
+                            </button>
+                        )}
+                    </section>
+
+                    <NotePicker
+                        isOpen={isNotePickerOpen}
+                        onClose={() => setIsNotePickerOpen(false)}
+                        onSelect={handleLinkNote}
+                    />
+
+                    {/* Footer */}
+                    <section className="pt-4 border-t border-border-subtle flex items-center justify-between">
                         <button
-                            onClick={() => setIsNotePickerOpen(true)}
-                            className="w-full py-2 border border-dashed border-border-default rounded-md text-xs text-text-muted hover:text-text-primary hover:border-accent transition-all"
+                            onClick={handleDelete}
+                            className="text-xs text-red-400 hover:text-red-300 transition-colors flex items-center gap-1.5"
                         >
-                            + Link to a Note
+                            <Trash2 className="w-3.5 h-3.5" /> Delete Card
                         </button>
-                    )}
-                </section>
-
-                <NotePicker
-                    isOpen={isNotePickerOpen}
-                    onClose={() => setIsNotePickerOpen(false)}
-                    onSelect={handleLinkNote}
-                />
-
-                {/* Footer */}
-                <section className="pt-4 border-t border-border-subtle flex items-center justify-between">
-                    <button
-                        onClick={handleDelete}
-                        className="text-xs text-red-400 hover:text-red-300 transition-colors flex items-center gap-1.5"
-                    >
-                        <Trash2 className="w-3.5 h-3.5" /> Delete Card
-                    </button>
-                    <span className="text-[10px] text-text-muted italic">
-                        Updated {timeAgo(card.updatedAt)}
-                    </span>
-                </section>
+                        <span className="text-[10px] text-text-muted italic">
+                            Updated {timeAgo(card.updatedAt)}
+                        </span>
+                    </section>
+                </aside>
             </div>
 
             <ConfirmModal
