@@ -87,7 +87,8 @@ export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete, g
         setIsLabelAdding(false);
         setNewLabelText('');
         setNewLabelColor('blue');
-        setMode('edit');
+        // Show rendered markdown when there is something to read
+        setMode(card.description?.trim() ? 'preview' : 'edit');
         setSaveStatus('idle');
     }, [card?._id]); // Only re-run when the card ID changes, not on every card update
 
@@ -505,7 +506,10 @@ export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete, g
                                 className="w-full bg-surface-overlay border border-border-default rounded-md px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent min-h-[240px] resize-y font-mono"
                             />
                         ) : (
-                            <div className="min-h-[240px] p-4 bg-surface-overlay/30 border border-border-subtle rounded-md">
+                            <div
+                                    onDoubleClick={() => setMode('edit')}
+                                    title="Double-click to edit"
+                                    className="min-h-[240px] p-4 bg-surface-overlay/30 border border-border-subtle rounded-md">
                                 {description ? (
                                     <MarkdownRenderer content={description} />
                                 ) : (
