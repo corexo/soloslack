@@ -11,7 +11,7 @@ const RATE_LIMIT = 10;
 const RATE_WINDOW_MS = 60_000;
 
 export function AIProvider({ children }) {
-    const { apiKeys, updateApiKeys } = useSettings();
+    const { apiKeys, updateApiKeys, aiConfig, updateAIConfig } = useSettings();
 
     // Which provider is currently active
     const [activeProvider, setActiveProvider] = useState(() => {
@@ -20,7 +20,7 @@ export function AIProvider({ children }) {
     });
 
     // Validation state per provider
-    const [keyStatus, setKeyStatus] = useState({ openai: null, anthropic: null, gemini: null });
+    const [keyStatus, setKeyStatus] = useState({ openai: null, anthropic: null, gemini: null, custom: null });
     const [isValidating, setIsValidating] = useState(false);
 
     // Rate limiting
@@ -35,15 +35,35 @@ export function AIProvider({ children }) {
         }
     }, [activeProvider]);
 
-    // Auto-select provider if only one key is set
+    // Custom (local) endpoints need URL + model; the key is optional there
+    const isProviderReady = useCallback((provider) => {
+        if (provider === 'custom') {
+            return Boolean(aiConfig.custom?.baseUrl?.trim() && aiConfig.custom?.model?.trim());
+        }
+        return Boolean(apiKeys[provider]?.trim());
+    }, [apiKeys, aiConfig]);
+
+    // Options passed to the provider layer (model override, custom endpoint)
+    const getProviderOptions = useCallback((provider) => {
+        const cfg = aiConfig[provider] || {};
+        const options = {};
+        if (cfg.model?.trim()) options.model = cfg.model.trim();
+        if (provider === 'custom') {
+            options.baseUrl = cfg.baseUrl?.trim();
+            options.embeddingModel = cfg.embeddingModel?.trim();
+        }
+        return options;
+    }, [aiConfig]);
+
+    // Auto-select provider if only one is configured
     useEffect(() => {
         if (activeProvider) return;
-        const providers = ['openai', 'anthropic', 'gemini'];
-        const available = providers.filter(p => apiKeys[p]?.trim());
+        const providers = ['openai', 'anthropic', 'gemini', 'custom'];
+        const available = providers.filter(isProviderReady);
         if (available.length === 1) setActiveProvider(available[0]);
-    }, [apiKeys, activeProvider]);
+    }, [isProviderReady, activeProvider]);
 
-    const isConfigured = Boolean(activeProvider && apiKeys[activeProvider]?.trim());
+    const isConfigured = Boolean(activeProvider && isProviderReady(activeProvider));
 
     // Check rate limit
     const checkRateLimit = useCallback(() => {
@@ -71,9 +91,9 @@ export function AIProvider({ children }) {
      * @returns {{ text: string, usage: object }}
      */
     const askAI = useCallback(async (messages, options = {}) => {
-        if (!isConfigured) throw new Error('AI is not configured. Add an API key in Settings.');
+        if (!isConfigured) throw new Error('AI is not configured. Set up a provider in Settings.');
         checkRateLimit();
-        const result = await callProvider(activeProvider, apiKeys[activeProvider], messages, options);
+        const result = await callProvider(activeProvider, apiKeys[activeProvider], messages, { ...getProviderOptions(activeProvider), ...options });
         // Auto-log token usage for analytics
         if (result.usage) {
             logUsage({
@@ -85,50 +105,56 @@ export function AIProvider({ children }) {
             });
         }
         return result;
-    }, [isConfigured, activeProvider, apiKeys, checkRateLimit]);
+    }, [isConfigured, activeProvider, apiKeys, getProviderOptions, checkRateLimit]);
 
     /**
      * Streaming AI request. Returns an async generator yielding text chunks.
      */
     const askAIStream = useCallback(async function* (messages, options = {}) {
-        if (!isConfigured) throw new Error('AI is not configured. Add an API key in Settings.');
+        if (!isConfigured) throw new Error('AI is not configured. Set up a provider in Settings.');
         checkRateLimit();
-        yield* streamProvider(activeProvider, apiKeys[activeProvider], messages, options);
-    }, [isConfigured, activeProvider, apiKeys, checkRateLimit]);
+        yield* streamProvider(activeProvider, apiKeys[activeProvider], messages, { ...getProviderOptions(activeProvider), ...options });
+    }, [isConfigured, activeProvider, apiKeys, getProviderOptions, checkRateLimit]);
 
     /**
      * Get embedding vector for text (for semantic search).
      */
     const embed = useCallback(async (text) => {
         if (!isConfigured) throw new Error('AI is not configured.');
-        // Anthropic doesn't support embeddings — fall back to available provider
-        const provider = activeProvider === 'anthropic'
-            ? (apiKeys.openai ? 'openai' : apiKeys.gemini ? 'gemini' : null)
-            : activeProvider;
-        if (!provider) throw new Error('Embeddings require an OpenAI or Gemini key.');
+        // Anthropic (and custom endpoints without an embedding model) can't embed — fall back to available provider
+        const canEmbed = activeProvider === 'custom'
+            ? Boolean(aiConfig.custom?.embeddingModel?.trim())
+            : activeProvider !== 'anthropic';
+        const provider = canEmbed
+            ? activeProvider
+            : (apiKeys.openai ? 'openai' : apiKeys.gemini ? 'gemini' : null);
+        if (!provider) throw new Error('Embeddings require an OpenAI or Gemini key, or an embedding model on the custom provider.');
         const key = apiKeys[provider];
         checkRateLimit();
-        return getEmbedding(provider, key, text);
-    }, [isConfigured, activeProvider, apiKeys, checkRateLimit]);
+        // Chat model overrides don't apply to embeddings
+        const { baseUrl, embeddingModel } = getProviderOptions(provider);
+        return getEmbedding(provider, key, text, { baseUrl, embeddingModel });
+    }, [isConfigured, activeProvider, apiKeys, aiConfig, getProviderOptions, checkRateLimit]);
 
     /**
      * Validate a specific provider key.
      */
     const validateProviderKey = useCallback(async (provider) => {
         const key = apiKeys[provider]?.trim();
-        if (!key) {
-            setKeyStatus(s => ({ ...s, [provider]: { valid: false, error: 'No key provided' } }));
+        if (!isProviderReady(provider)) {
+            const error = provider === 'custom' ? 'Base URL and model are required' : 'No key provided';
+            setKeyStatus(s => ({ ...s, [provider]: { valid: false, error } }));
             return false;
         }
         setIsValidating(true);
         try {
-            const result = await validateKey(provider, key);
+            const result = await validateKey(provider, key, getProviderOptions(provider));
             setKeyStatus(s => ({ ...s, [provider]: result }));
             return result.valid;
         } finally {
             setIsValidating(false);
         }
-    }, [apiKeys]);
+    }, [apiKeys, isProviderReady, getProviderOptions]);
 
     /**
      * Update provider key and optionally validate.
@@ -138,12 +164,21 @@ export function AIProvider({ children }) {
         setKeyStatus(s => ({ ...s, [provider]: null }));
     }, [updateApiKeys]);
 
+    /**
+     * Update provider config (model, baseUrl, embeddingModel) and reset validation.
+     */
+    const setProviderConfig = useCallback((provider, patch) => {
+        updateAIConfig(provider, patch);
+        setKeyStatus(s => ({ ...s, [provider]: null }));
+    }, [updateAIConfig]);
+
     return (
         <AIContext.Provider value={{
             // State
             activeProvider,
             setActiveProvider,
             isConfigured,
+            isProviderReady,
             keyStatus,
             isValidating,
 
@@ -154,6 +189,7 @@ export function AIProvider({ children }) {
 
             // Key management
             setProviderKey,
+            setProviderConfig,
             validateProviderKey,
 
             // Rate limiting

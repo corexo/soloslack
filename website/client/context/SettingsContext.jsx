@@ -7,7 +7,15 @@ export function SettingsProvider({ children }) {
     const [apiKeys, setApiKeys] = useState({
         openai: '',
         anthropic: '',
-        gemini: ''
+        gemini: '',
+        custom: ''
+    });
+    // Per-provider overrides: model for all, baseUrl/embeddingModel for custom (local) endpoints
+    const [aiConfig, setAIConfig] = useState({
+        openai: { model: '' },
+        anthropic: { model: '' },
+        gemini: { model: '' },
+        custom: { baseUrl: '', model: '', embeddingModel: '' }
     });
     const [serverEnv, setServerEnv] = useState({
         MONGODB_URI: '',
@@ -22,13 +30,24 @@ export function SettingsProvider({ children }) {
     // Load settings from localStorage on mount and fetch server env
     useEffect(() => {
         const savedKeys = localStorage.getItem('notban_api_keys');
+        const savedAIConfig = localStorage.getItem('notban_ai_config');
         const savedTheme = localStorage.getItem('theme') || 'dark';
 
         if (savedKeys) {
             try {
-                setApiKeys(JSON.parse(savedKeys));
+                setApiKeys(prev => ({ ...prev, ...JSON.parse(savedKeys) }));
             } catch (e) {
                 console.error('Failed to parse saved API keys', e);
+            }
+        }
+        if (savedAIConfig) {
+            try {
+                const parsed = JSON.parse(savedAIConfig);
+                setAIConfig(prev => Object.fromEntries(
+                    Object.entries(prev).map(([k, v]) => [k, { ...v, ...parsed[k] }])
+                ));
+            } catch (e) {
+                console.error('Failed to parse saved AI config', e);
             }
         }
         
@@ -57,6 +76,14 @@ export function SettingsProvider({ children }) {
         const updatedKeys = { ...apiKeys, ...newKeys };
         setApiKeys(updatedKeys);
         localStorage.setItem('notban_api_keys', JSON.stringify(updatedKeys));
+    };
+
+    const updateAIConfig = (provider, patch) => {
+        setAIConfig(prev => {
+            const next = { ...prev, [provider]: { ...prev[provider], ...patch } };
+            localStorage.setItem('notban_ai_config', JSON.stringify(next));
+            return next;
+        });
     };
 
     const updateServerEnv = async (newEnv) => {
@@ -88,6 +115,8 @@ export function SettingsProvider({ children }) {
         <SettingsContext.Provider value={{
             apiKeys,
             updateApiKeys,
+            aiConfig,
+            updateAIConfig,
             serverEnv,
             updateServerEnv,
             theme,

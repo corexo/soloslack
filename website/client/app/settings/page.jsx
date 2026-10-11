@@ -2,17 +2,26 @@
 import { useState, useEffect } from 'react';
 import { useSettings } from '@/context/SettingsContext';
 import { useAI } from '@/context/AIContext';
+import { DEFAULT_MODELS } from '@/lib/ai/providers';
 import { Key, Save, Shield, Settings2, Sparkles, CheckCircle2, Eye, EyeOff, Cpu, Zap, AlertCircle } from 'lucide-react';
 
 const PROVIDERS = [
     { key: 'openai', name: 'OpenAI', placeholder: 'sk-...', color: 'emerald' },
     { key: 'anthropic', name: 'Anthropic', placeholder: 'sk-ant-...', color: 'violet' },
     { key: 'gemini', name: 'Google Gemini', placeholder: 'AI...', color: 'amber' },
+    { key: 'custom', name: 'Custom / Local', placeholder: 'optional', color: 'sky' },
 ];
 
+const ACTIVE_PROVIDER_CLASSES = {
+    emerald: 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400',
+    violet: 'bg-violet-500/20 border-violet-500/40 text-violet-400',
+    amber: 'bg-amber-500/20 border-amber-500/40 text-amber-400',
+    sky: 'bg-sky-500/20 border-sky-500/40 text-sky-400',
+};
+
 export default function SettingsPage() {
-    const { serverEnv, updateServerEnv, theme, updateTheme, isLoaded, apiKeys } = useSettings();
-    const { activeProvider, setActiveProvider, keyStatus, isValidating, setProviderKey, validateProviderKey } = useAI();
+    const { serverEnv, updateServerEnv, theme, updateTheme, isLoaded, apiKeys, aiConfig } = useSettings();
+    const { activeProvider, setActiveProvider, keyStatus, isValidating, setProviderKey, setProviderConfig, validateProviderKey, isProviderReady } = useAI();
     const [localEnv, setLocalEnv] = useState({ ...serverEnv });
     const [isSaving, setIsSaving] = useState(false);
     const [saveStatus, setSaveStatus] = useState(null);
@@ -143,11 +152,7 @@ export default function SettingsPage() {
                                         onClick={() => setActiveProvider(p.key)}
                                         className={`flex-1 px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all ${
                                             activeProvider === p.key
-                                                ? p.color === 'emerald'
-                                                    ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
-                                                    : p.color === 'violet'
-                                                        ? 'bg-violet-500/20 border-violet-500/40 text-violet-400'
-                                                        : 'bg-amber-500/20 border-amber-500/40 text-amber-400'
+                                                ? ACTIVE_PROVIDER_CLASSES[p.color]
                                                 : 'bg-surface-overlay/40 border-border-subtle text-text-secondary hover:border-border-strong'
                                         }`}
                                     >
@@ -167,6 +172,9 @@ export default function SettingsPage() {
                                 provider={p}
                                 value={apiKeys[p.key] || ''}
                                 onChange={(val) => setProviderKey(p.key, val)}
+                                config={aiConfig[p.key] || {}}
+                                onConfigChange={(patch) => setProviderConfig(p.key, patch)}
+                                canValidate={isProviderReady(p.key)}
                                 onValidate={() => validateProviderKey(p.key)}
                                 status={keyStatus[p.key]}
                                 isValidating={isValidating}
@@ -181,6 +189,7 @@ export default function SettingsPage() {
                                 <p className="text-xs font-semibold text-purple-400/80">Privacy First</p>
                                 <p className="text-[11px] text-text-secondary leading-relaxed">
                                     Keys are stored in your browser's localStorage only. No AI prompts or responses are logged. Rate limited to 10 requests/minute to prevent accidental quota burn.
+                                    For fully local AI, use <span className="text-sky-400 font-semibold">Custom / Local</span> with any OpenAI-compatible server (Ollama, LM Studio, llama.cpp, vLLM).
                                 </p>
                             </div>
                         </div>
@@ -257,8 +266,11 @@ export default function SettingsPage() {
     );
 }
 
-function AIKeyInput({ provider, value, onChange, onValidate, status, isValidating, isActive }) {
+const configInputClass = 'w-full bg-surface-overlay border border-border-subtle focus:border-purple-500/40 focus:ring-2 focus:ring-purple-500/10 rounded-lg px-3 py-2 text-xs text-text-primary outline-none transition-all font-mono placeholder:text-text-muted/30';
+
+function AIKeyInput({ provider, value, onChange, config, onConfigChange, canValidate, onValidate, status, isValidating, isActive }) {
     const [visible, setVisible] = useState(false);
+    const isCustom = provider.key === 'custom';
 
     return (
         <div className={`space-y-2 p-4 rounded-xl border transition-all ${
@@ -266,7 +278,7 @@ function AIKeyInput({ provider, value, onChange, onValidate, status, isValidatin
         }`}>
             <div className="flex items-center justify-between">
                 <label className="text-xs font-semibold text-text-primary">
-                    {provider.name} API Key
+                    {isCustom ? 'Custom / Local (OpenAI-compatible)' : `${provider.name} API Key`}
                     {isActive && <span className="text-purple-400 text-[10px] ml-1.5">(active)</span>}
                 </label>
                 <div className="flex items-center gap-2">
@@ -276,11 +288,38 @@ function AIKeyInput({ provider, value, onChange, onValidate, status, isValidatin
                         </span>
                     )}
                     {status?.valid === false && status.error !== 'No key provided' && (
-                        <span className="text-[10px] font-semibold text-red-400 flex items-center gap-1">
+                        <span title={status.error} className="text-[10px] font-semibold text-red-400 flex items-center gap-1">
                             <AlertCircle className="w-3 h-3" /> Invalid
                         </span>
                     )}
                 </div>
+            </div>
+            {isCustom && (
+                <input
+                    type="text"
+                    value={config.baseUrl || ''}
+                    onChange={(e) => onConfigChange({ baseUrl: e.target.value })}
+                    placeholder="Base URL, e.g. http://localhost:11434/v1"
+                    className={configInputClass}
+                />
+            )}
+            <div className="flex items-center gap-2">
+                <input
+                    type="text"
+                    value={config.model || ''}
+                    onChange={(e) => onConfigChange({ model: e.target.value })}
+                    placeholder={isCustom ? 'Model, e.g. llama3.1 (required)' : `Model (default: ${DEFAULT_MODELS[provider.key]})`}
+                    className={configInputClass}
+                />
+                {isCustom && (
+                    <input
+                        type="text"
+                        value={config.embeddingModel || ''}
+                        onChange={(e) => onConfigChange({ embeddingModel: e.target.value })}
+                        placeholder="Embedding model (optional)"
+                        className={configInputClass}
+                    />
+                )}
             </div>
             <div className="flex items-center gap-2">
                 <div className="relative flex-1">
@@ -288,7 +327,7 @@ function AIKeyInput({ provider, value, onChange, onValidate, status, isValidatin
                         type={visible ? 'text' : 'password'}
                         value={value}
                         onChange={(e) => onChange(e.target.value)}
-                        placeholder={provider.placeholder}
+                        placeholder={isCustom ? 'API key (optional)' : provider.placeholder}
                         className="w-full bg-surface-overlay border border-border-subtle focus:border-purple-500/40 focus:ring-2 focus:ring-purple-500/10 rounded-lg px-3 py-2 text-xs text-text-primary outline-none transition-all font-mono pr-8 placeholder:text-text-muted/30"
                     />
                     <button
@@ -302,7 +341,7 @@ function AIKeyInput({ provider, value, onChange, onValidate, status, isValidatin
                 <button
                     type="button"
                     onClick={onValidate}
-                    disabled={!value.trim() || isValidating}
+                    disabled={!canValidate || isValidating}
                     className="px-3 py-2 rounded-lg bg-purple-500/10 text-purple-400 text-[11px] font-semibold hover:bg-purple-500/20 transition-colors disabled:opacity-30 shrink-0"
                 >
                     {isValidating ? (
@@ -312,6 +351,14 @@ function AIKeyInput({ provider, value, onChange, onValidate, status, isValidatin
                     )}
                 </button>
             </div>
+            {status?.valid === false && status.error && status.error !== 'No key provided' && (
+                <p className="text-[10px] text-red-400/80 leading-relaxed">{status.error}</p>
+            )}
+            {isCustom && (
+                <p className="text-[10px] text-text-muted leading-relaxed">
+                    Requests go from your browser to this URL, so the server must allow CORS (Ollama: <code className="text-sky-400">OLLAMA_ORIGINS=*</code>).
+                </p>
+            )}
         </div>
     );
 }

@@ -15,6 +15,7 @@ const PROVIDER_COLORS = {
     openai: '#10b981',
     anthropic: '#8b5cf6',
     gemini: '#f59e0b',
+    custom: '#0ea5e9',
 };
 
 const MODEL_COLORS = [
