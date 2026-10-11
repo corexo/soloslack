@@ -27,6 +27,8 @@ const toTask = (card, board, column) => ({
     description: card.description,
     priority: card.priority,
     assignee: card.assignee,
+    branch: card.branch || null,
+    repo: board?.gitRepo || null,
     dueDate: card.dueDate,
     labels: (card.labels || []).map(l => l.text),
     checklist: (card.checklist || []).map(i => ({ text: i.text, completed: i.completed })),
@@ -112,13 +114,14 @@ exports.addComment = async (req, res, next) => {
     }
 };
 
-// @desc    Update ticket: move to column (name or id), change priority, reassign
+// @desc    Update ticket: move to column (name or id), change priority, reassign, link branch
 // @route   PATCH /api/agent/tasks/:id
 exports.updateTask = async (req, res, next) => {
     try {
         const card = await findCard(req.params.id);
-        const { column, priority, assignee } = req.body || {};
+        const { column, priority, assignee, branch } = req.body || {};
         const update = {};
+        if (branch !== undefined) update.branch = branch || null;
 
         if (column !== undefined) {
             const columns = await Column.find({ boardId: card.boardId }).lean();

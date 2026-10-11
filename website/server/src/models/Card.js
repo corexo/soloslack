@@ -21,7 +21,7 @@ const cardSchema = new mongoose.Schema(
         description: {
             type: String,
             default: '',
-            maxlength: [2000, 'Description cannot exceed 2000 characters'],
+            maxlength: [20000, 'Description cannot exceed 20000 characters'],
         },
         priority: {
             type: String,
@@ -48,6 +48,13 @@ const cardSchema = new mongoose.Schema(
             default: null,
             trim: true,
             lowercase: true,
+        },
+        // Git branch linked to this ticket (in the board's gitRepo)
+        branch: {
+            type: String,
+            default: null,
+            trim: true,
+            maxlength: 200,
         },
         dueDate: {
             type: Date,

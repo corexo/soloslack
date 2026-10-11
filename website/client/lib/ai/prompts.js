@@ -160,3 +160,99 @@ export function workflowSuggestionsPrompt(boardData) {
         },
     ];
 }
+
+// ── Agent Tickets ────────────────────────────────────────────────
+
+/**
+ * Turn a rough ticket into a spec an AI agent can execute.
+ * Plain markdown (not JSON) so local models don't break on escaping.
+ */
+export function refineTicketPrompt({ title, description, checklist = [], labels = [], boardName, branch }) {
+    return [
+        {
+            role: 'system',
+            content: `You turn rough Kanban tickets into clear, self-contained work orders for an autonomous AI coding agent.
+Write in the same language as the ticket. Do not invent facts about the codebase; list open questions instead.
+Return ONLY markdown in exactly this structure:
+
+## Goal
+One or two sentences on the outcome.
+
+## Context
+What the agent needs to know (from the ticket). Omit if nothing to add.
+
+## Acceptance Criteria
+- Verifiable criterion
+- ...
+
+## Notes
+Constraints, hints, open questions. Omit if none.
+
+## Checklist
+- [ ] Concrete step
+- [ ] ...
+
+The checklist has 3-8 short, actionable steps (max 120 characters each).`,
+        },
+        {
+            role: 'user',
+            content: [
+                `Ticket title: ${title}`,
+                boardName && `Board: ${boardName}`,
+                branch && `Git branch: ${branch}`,
+                labels.length && `Labels: ${labels.join(', ')}`,
+                description?.trim() && `Current description:\n${description}`,
+                checklist.length && `Current checklist:\n${checklist.map(i => `- [${i.completed ? 'x' : ' '}] ${i.text}`).join('\n')}`,
+                // Small local models ignore the system prompt's language rule; repeating it here works
+                'Write the whole answer in the language of the ticket title (the section headings too).',
+            ].filter(Boolean).join('\n\n'),
+        },
+    ];
+}
+
+/** Split refineTicketPrompt output into description + checklist items */
+export function parseRefinedTicket(markdown) {
+    const text = markdown.replace(/^```(?:markdown|md)?\n?/i, '').replace(/```\s*$/, '').trim();
+    const match = /^##\s*(checklist|checkliste|aufgaben|schritte|to-?dos?)\s*$/im.exec(text);
+    const description = (match ? text.slice(0, match.index) : text).trim();
+    const checklist = match
+        ? text.slice(match.index + match[0].length)
+            .split('\n')
+            .map(l => /^\s*[-*]\s*(\[[ xX]\]\s*)?(.+)$/.exec(l)?.[2]?.trim())
+            .filter(Boolean)
+            .map(t => t.slice(0, 200))
+        : [];
+    return { description, checklist };
+}
+
+/** Summarize a ticket's comment thread (agent progress updates + user replies) */
+export function commentThreadSummaryPrompt({ title, description, comments }) {
+    const thread = comments
+        .map(c => {
+            const files = c.attachments?.length ? `\n[attachments: ${c.attachments.map(a => a.name).join(', ')}]` : '';
+            return `### ${c.author || 'user'}${c.authorType === 'agent' ? ' (AI agent)' : ''} — ${c.createdAt}\n${(c.body || '').slice(0, 3000)}${files}`;
+        })
+        .join('\n\n');
+    return [
+        {
+            role: 'system',
+            content: `You summarize the progress thread of a Kanban ticket worked on by AI agents and a human.
+Write in the same language as the thread. Be concise. Return ONLY markdown with these sections:
+
+**Status:** one sentence.
+
+**Done**
+- ...
+
+**Open / Blockers**
+- ... (write "- none" if there are none)
+
+**Next steps**
+- ...`,
+        },
+        {
+            role: 'user',
+            content: `Ticket: ${title}\n\n${description ? `Description:\n${description.slice(0, 2000)}\n\n` : ''}Thread (oldest first):\n\n${thread}`,
+        },
+    ];
+}

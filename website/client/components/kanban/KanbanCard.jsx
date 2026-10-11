@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Calendar, MessageSquare, Bot } from 'lucide-react';
+import { Calendar, MessageSquare, Bot, GitBranch } from 'lucide-react';
 import Badge from '../ui/Badge';
 import AnimatedIcon from '../ui/AnimatedIcon';
 import { cn } from '@/lib/utils/cn';
@@ -103,6 +103,13 @@ export default function KanbanCard({ card, onClick, isOverlay, selectMode, isSel
             <h5 className="text-sm font-medium text-text-primary mb-1 group-hover:text-accent transition-colors leading-snug">
                 {card.title}
             </h5>
+
+            {card.branch && (
+                <p className="flex items-center gap-1 text-[10px] font-mono text-emerald-400/80 mb-1 truncate" title={card.branch}>
+                    <GitBranch className="w-3 h-3 shrink-0" />
+                    <span className="truncate">{card.branch}</span>
+                </p>
+            )}
 
             {/* Description preview */}
             {cleanDescription && (

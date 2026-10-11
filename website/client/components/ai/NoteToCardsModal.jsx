@@ -1,11 +1,12 @@
 'use client';
-import { useState } from 'react';
-import { Sparkles, Plus, X, Check } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Sparkles, Plus, X, Check, Bot } from 'lucide-react';
 import Modal from '../ui/Modal';
 import { useAI } from '@/context/AIContext';
 import { useBoards } from '@/context/BoardsContext';
 import { boardsApi } from '@/lib/api/boardsApi';
 import { cardsApi } from '@/lib/api/cardsApi';
+import { agentsApi } from '@/lib/api/agentsApi';
 import { noteToCardsPrompt } from '@/lib/ai/prompts';
 import { cn } from '@/lib/utils/cn';
 
@@ -29,6 +30,17 @@ export default function NoteToCardsModal({ isOpen, onClose, noteTitle, noteBody 
     const [selectedCards, setSelectedCards] = useState(new Set());
     const [creating, setCreating] = useState(false);
     const [created, setCreated] = useState(false);
+    const [agents, setAgents] = useState([]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        agentsApi.getAll().then(res => setAgents(res.data)).catch(() => setAgents([]));
+    }, [isOpen]);
+
+    const setCardAssignee = (i, assignee) => {
+        setCards(prev => prev.map((c, j) => j === i ? { ...c, assignee } : c));
+    };
+    const assignAll = (assignee) => setCards(prev => prev.map(c => ({ ...c, assignee })));
 
     const handleBoardChange = async (boardId) => {
         setSelectedBoard(boardId);
@@ -54,9 +66,11 @@ export default function NoteToCardsModal({ isOpen, onClose, noteTitle, noteBody 
         setCreated(false);
         try {
             const result = await askAI(noteToCardsPrompt(noteTitle, noteBody), { maxTokens: 2048 });
-            const parsed = JSON.parse(result.text.replace(/```json?\n?/g, '').replace(/```/g, '').trim());
+            // Local models sometimes wrap the JSON in prose — take the outermost array
+            const json = /\[[\s\S]*\]/.exec(result.text)?.[0];
+            const parsed = json ? JSON.parse(json) : null;
             if (Array.isArray(parsed)) {
-                setCards(parsed);
+                setCards(parsed.map(c => ({ ...c, assignee: '' })));
                 setSelectedCards(new Set(parsed.map((_, i) => i)));
             } else {
                 throw new Error('Invalid response format');
@@ -88,7 +102,8 @@ export default function NoteToCardsModal({ isOpen, onClose, noteTitle, noteBody 
                     boardId: selectedBoard,
                     title: card.title,
                     description: card.description || '',
-                    priority: card.priority || 'medium',
+                    priority: ['low', 'medium', 'high'].includes(card.priority) ? card.priority : 'medium',
+                    ...(card.assignee && { assignee: card.assignee }),
                 });
             }
             setCreated(true);
@@ -192,6 +207,21 @@ export default function NoteToCardsModal({ isOpen, onClose, noteTitle, noteBody 
                             </div>
                         </div>
 
+                        {agents.length > 0 && (
+                            <div className="flex items-center gap-2">
+                                <Bot className="w-3.5 h-3.5 text-sky-400" />
+                                <label className="text-xs font-semibold text-text-muted uppercase">Assign all to</label>
+                                <select
+                                    onChange={(e) => assignAll(e.target.value)}
+                                    defaultValue=""
+                                    className="flex-1 bg-surface-overlay border border-border-default rounded-md px-3 py-1.5 text-xs text-text-primary focus:outline-none focus:border-accent"
+                                >
+                                    <option value="">Nobody</option>
+                                    {agents.map(a => <option key={a._id} value={a.name}>{a.name}</option>)}
+                                </select>
+                            </div>
+                        )}
+
                         {/* Generated cards */}
                         <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
                             {cards.map((card, i) => (
@@ -217,12 +247,26 @@ export default function NoteToCardsModal({ isOpen, onClose, noteTitle, noteBody 
                                             <p className="text-xs text-text-muted mt-0.5 line-clamp-2">{card.description}</p>
                                         )}
                                     </div>
-                                    <span className={cn(
-                                        'text-[10px] font-semibold px-1.5 py-0.5 rounded border shrink-0',
-                                        PRIORITY_STYLE[card.priority] || PRIORITY_STYLE.medium
-                                    )}>
-                                        {card.priority || 'medium'}
-                                    </span>
+                                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                                        <span className={cn(
+                                            'text-[10px] font-semibold px-1.5 py-0.5 rounded border',
+                                            PRIORITY_STYLE[card.priority] || PRIORITY_STYLE.medium
+                                        )}>
+                                            {card.priority || 'medium'}
+                                        </span>
+                                        {agents.length > 0 && (
+                                            <select
+                                                value={card.assignee || ''}
+                                                onClick={(e) => e.stopPropagation()}
+                                                onChange={(e) => setCardAssignee(i, e.target.value)}
+                                                className="max-w-[130px] bg-surface-overlay border border-border-default rounded px-1.5 py-0.5 text-[10px] text-sky-400 focus:outline-none"
+                                                title="Assign to agent"
+                                            >
+                                                <option value="">🤖 unassigned</option>
+                                                {agents.map(a => <option key={a._id} value={a.name}>🤖 {a.name}</option>)}
+                                            </select>
+                                        )}
+                                    </div>
                                 </div>
                             ))}
                         </div>

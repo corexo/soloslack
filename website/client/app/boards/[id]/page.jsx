@@ -8,8 +8,11 @@ import CardModal from '@/components/kanban/CardModal';
 import CreateColumnModal from '@/components/kanban/CreateColumnModal';
 import CreateCardModal from '@/components/kanban/CreateCardModal';
 import ImportBoardModal from '@/components/kanban/ImportBoardModal';
+import RepoPicker from '@/components/kanban/RepoPicker';
+import WorkflowSuggestions from '@/components/ai/WorkflowSuggestions';
+import { useAI } from '@/context/AIContext';
 import { exportBoardToJson, exportBoardToCsv } from '@/lib/utils/exportUtils';
-import { Download, Upload, Plus, AlertCircle, LayoutDashboard, CalendarDays, CheckSquare, X, Trash2, Archive, ArrowRight, FileJson, FileSpreadsheet } from 'lucide-react';
+import { Download, Upload, Plus, AlertCircle, LayoutDashboard, CalendarDays, CheckSquare, X, Trash2, Archive, ArrowRight, FileJson, FileSpreadsheet, Sparkles } from 'lucide-react';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import { useUndo } from '@/context/UndoContext';
 import { cn } from '@/lib/utils/cn';
@@ -22,10 +25,12 @@ export default function BoardViewPage() {
         activeBoard, fetchBoardFull, loading,
         moveCard, createCard, updateCard, deleteCard,
         createColumn, updateColumn, deleteColumn,
-        importBoard,
+        importBoard, updateBoard,
         bulkDeleteCards, bulkMoveCards, bulkArchiveCards,
     } = useBoards();
     const { showToast } = useUndo();
+    const { isConfigured: aiConfigured } = useAI();
+    const [showInsights, setShowInsights] = useState(false);
 
     const [selectedCardId, setSelectedCardId] = useState(null);
     const [isCardModalOpen, setIsCardModalOpen] = useState(false);
@@ -42,6 +47,23 @@ export default function BoardViewPage() {
     useEffect(() => {
         if (id) fetchBoardFull(id);
     }, [id, fetchBoardFull]);
+
+    // Deep link: /boards/<id>?card=<cardId> opens that card (search results, agent links)
+    useEffect(() => {
+        if (!activeBoard || activeBoard.board._id !== id) return;
+        const params = new URLSearchParams(window.location.search);
+        const cardId = params.get('card');
+        if (!cardId) return;
+        if (activeBoard.columns.some(col => col.cards?.some(c => c._id === cardId))) {
+            // Syncing from the URL (external state) once the board has loaded
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            setSelectedCardId(cardId);
+            setIsCardModalOpen(true);
+        }
+        params.delete('card');
+        const qs = params.toString();
+        window.history.replaceState(null, '', `${window.location.pathname}${qs ? `?${qs}` : ''}`);
+    }, [activeBoard, id]);
 
     // Pick up changes made by AI agents (moves, reassignments) without a reload
     useEffect(() => {
@@ -248,6 +270,25 @@ export default function BoardViewPage() {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
+                    <RepoPicker
+                        value={activeBoard.board.gitRepo}
+                        onChange={(gitRepo) => updateBoard(activeBoard.board._id, { gitRepo })
+                            .catch(err => showToast({ label: 'Could not link repo: ' + err.message, type: 'error' }))}
+                    />
+
+                    {aiConfigured && (
+                        <button
+                            onClick={() => setShowInsights(v => !v)}
+                            className={cn(
+                                'p-1.5 rounded-md transition-colors',
+                                showInsights ? 'bg-purple-500/20 text-purple-400' : 'text-text-secondary hover:text-purple-400 hover:bg-surface-hover'
+                            )}
+                            title="AI workflow insights"
+                        >
+                            <Sparkles className="w-4 h-4" />
+                        </button>
+                    )}
+
                     {/* Select mode toggle */}
                     <button
                         onClick={toggleSelectMode}
@@ -356,7 +397,18 @@ export default function BoardViewPage() {
                 card={selectedCard}
                 onUpdate={handleUpdateCard}
                 onDelete={handleDeleteCard}
+                gitRepo={activeBoard.board.gitRepo || null}
+                boardName={activeBoard.board.name}
             />
+
+            {showInsights && (
+                <aside className="fixed right-4 top-20 z-40 w-80 max-h-[75vh] overflow-y-auto p-4 pt-9 rounded-xl bg-surface-overlay border border-border-subtle shadow-2xl">
+                    <button onClick={() => setShowInsights(false)} className="absolute top-3 right-3 text-text-muted hover:text-text-primary">
+                        <X className="w-3.5 h-3.5" />
+                    </button>
+                    <WorkflowSuggestions board={{ name: activeBoard.board.name, columns: activeBoard.columns }} />
+                </aside>
+            )}
             <CreateCardModal
                 isOpen={isCreateCardModalOpen}
                 onClose={() => setIsCreateCardModalOpen(false)}

@@ -14,5 +14,6 @@ router.use('/ai', require('./ai.routes'));
 router.use('/agents', require('./agents.routes'));
 router.use('/agent', require('./agentApi.routes'));
 router.use('/attachments', require('./attachments.routes'));
+router.use('/git', require('./git.routes'));
 
 module.exports = router;

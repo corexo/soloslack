@@ -25,6 +25,7 @@ Tickets:
                                         Upload screenshots / markdown files
   soloslack move <id> <column>          Move ticket to a column (by name, e.g. "Done")
   soloslack assign <id> <agent|none>    Hand the ticket to another agent / unassign
+  soloslack branch <id> [name|none]     Show or link the git branch you work on for this ticket
   soloslack download <attachment-id> [out-file]
                                         Download an attachment (e.g. a screenshot from the user)
 
@@ -107,9 +108,9 @@ const pad = (s, n) => String(s ?? '').slice(0, n).padEnd(n);
 
 function printTasks(tasks) {
     if (!tasks.length) return console.log('No tickets.');
-    console.log(`${pad('ID', 24)}  ${pad('COLUMN', 14)}  ${pad('PRIO', 6)}  ${pad('ASSIGNEE', 16)}  TITLE`);
+    console.log(`${pad('ID', 24)}  ${pad('COLUMN', 14)}  ${pad('PRIO', 6)}  ${pad('ASSIGNEE', 16)}  ${pad('BRANCH', 24)}  TITLE`);
     for (const t of tasks) {
-        console.log(`${t.id}  ${pad(t.column?.name, 14)}  ${pad(t.priority, 6)}  ${pad(t.assignee || '-', 16)}  ${t.title}`);
+        console.log(`${t.id}  ${pad(t.column?.name, 14)}  ${pad(t.priority, 6)}  ${pad(t.assignee || '-', 16)}  ${pad(t.branch || '-', 24)}  ${t.title}`);
     }
 }
 
@@ -117,6 +118,7 @@ function printTask(t, baseUrl) {
     const origin = baseUrl.replace(/\/api$/, '');
     console.log(`# ${t.title}`);
     console.log(`id: ${t.id} | board: ${t.board?.name} | column: ${t.column?.name} | priority: ${t.priority} | assignee: ${t.assignee || '-'}`);
+    if (t.repo || t.branch) console.log(`repo: ${t.repo || '-'} | branch: ${t.branch || '-'}`);
     if (t.dueDate) console.log(`due: ${t.dueDate.slice(0, 10)}`);
     if (t.labels.length) console.log(`labels: ${t.labels.join(', ')}`);
     console.log(`columns: ${t.columns.map(c => c.name).join(' | ')}`);
@@ -200,6 +202,16 @@ const commands = {
         if (!id || !agent) fail('Usage: soloslack assign <id> <agent|none>');
         const t = await api('PATCH', `/agent/tasks/${id}`, { json: { assignee: agent === 'none' ? null : agent } });
         console.log(t.assignee ? `Assigned to ${t.assignee}.` : 'Unassigned.');
+    },
+
+    async branch([id, name]) {
+        if (!id) fail('Usage: soloslack branch <id> [name|none]');
+        if (!name) {
+            const t = await api('GET', `/agent/tasks/${id}`);
+            return console.log(t.branch || '(no branch linked)');
+        }
+        const t = await api('PATCH', `/agent/tasks/${id}`, { json: { branch: name === 'none' ? null : name } });
+        console.log(t.branch ? `Linked branch ${t.branch}.` : 'Branch unlinked.');
     },
 
     async download([id, out]) {

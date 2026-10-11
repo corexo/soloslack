@@ -39,13 +39,18 @@ export default function WorkflowSuggestions({ board }) {
                         hasDescription: !!c.description,
                         checklistItems: c.checklist?.length || 0,
                         checklistDone: c.checklist?.filter(i => i.completed).length || 0,
+                        assignedAgent: c.assignee || null,
+                        branch: c.branch || null,
                         updatedAt: c.updatedAt,
                     })),
                 })),
             };
 
-            const result = await askAI(workflowSuggestionsPrompt(boardData), { maxTokens: 1024, temperature: 0.5 });
-            const parsed = JSON.parse(result.text.replace(/```json?\n?/g, '').replace(/```/g, '').trim());
+            const result = await askAI(workflowSuggestionsPrompt(boardData), { maxTokens: 2048, temperature: 0.5 });
+            // Local models sometimes wrap the JSON in prose — take the outermost array
+            const json = /\[[\s\S]*\]/.exec(result.text)?.[0];
+            if (!json) throw new Error('AI did not return a list of suggestions');
+            const parsed = JSON.parse(json);
             if (Array.isArray(parsed)) {
                 setSuggestions(parsed);
             }

@@ -125,6 +125,7 @@ exports.createCard = async (req, res, next) => {
             ...(req.body.labels && { labels: req.body.labels }),
             ...(req.body.checklist && { checklist: req.body.checklist }),
             ...(req.body.assignee && { assignee: req.body.assignee }),
+            ...(req.body.branch && { branch: req.body.branch }),
         });
 
         // 1.5 Handle reciprocal linking to Note

@@ -1,8 +1,11 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search, FileText, LayoutDashboard, X } from 'lucide-react';
+import { Search, FileText, LayoutDashboard, X, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useNotes } from '@/context/NotesContext';
+import { useAI } from '@/context/AIContext';
+import { notesApi } from '@/lib/api/notesApi';
+import { semanticSearch } from '@/lib/ai/semanticSearch';
 import { cn } from '@/lib/utils/cn';
 
 function getSnippet(text, query, maxLen = 90) {
@@ -24,6 +27,11 @@ export default function UnifiedSearch({ isOpen, onClose }) {
     const inputRef = useRef(null);
     const router = useRouter();
     const { setActiveNote } = useNotes();
+    const { isConfigured: aiConfigured, embed, resolveEmbedding } = useAI();
+    const canSemantic = aiConfigured && Boolean(resolveEmbedding());
+    // 'keyword' = server full-text search, 'ai' = embedding similarity (search by meaning)
+    const [mode, setMode] = useState('keyword');
+    const [error, setError] = useState('');
 
     // Reset + focus on open
     useEffect(() => {
@@ -37,9 +45,33 @@ export default function UnifiedSearch({ isOpen, onClose }) {
 
     // Debounced search
     useEffect(() => {
+        setError('');
         if (!query.trim()) {
             setResults({ notes: [], cards: [] });
             return;
+        }
+        if (mode === 'ai') {
+            let cancelled = false;
+            const timer = setTimeout(async () => {
+                setLoading(true);
+                try {
+                    const ranked = await semanticSearch(query.trim(), { embed, modelKey: resolveEmbedding().key });
+                    if (cancelled) return;
+                    // Same shape as the keyword endpoint so the result list renders unchanged
+                    setResults({
+                        notes: ranked.filter(r => r.type === 'note').map(r => ({ ...r.item, body: r.item.text })),
+                        cards: ranked.filter(r => r.type === 'card').map(r => ({
+                            ...r.item, description: r.item.text, boardId: { _id: r.item.boardId, name: r.item.boardName },
+                        })),
+                    });
+                    setSelectedIndex(0);
+                } catch (err) {
+                    if (!cancelled) setError(err.message);
+                } finally {
+                    if (!cancelled) setLoading(false);
+                }
+            }, 600);
+            return () => { cancelled = true; clearTimeout(timer); };
         }
         const timer = setTimeout(async () => {
             setLoading(true);
@@ -58,19 +90,21 @@ export default function UnifiedSearch({ isOpen, onClose }) {
             }
         }, 300);
         return () => clearTimeout(timer);
-    }, [query]);
+    }, [query, mode, embed, resolveEmbedding]);
 
     const allResults = [
         ...results.notes.map(n => ({ type: 'note', item: n })),
         ...results.cards.map(c => ({ type: 'card', item: c })),
     ];
 
-    const handleSelect = useCallback((entry) => {
+    const handleSelect = useCallback(async (entry) => {
         if (entry.type === 'note') {
-            setActiveNote(entry.item);
+            // AI results only carry an excerpt — load the full note
+            const full = await notesApi.getById(entry.item._id).then(res => res.data).catch(() => entry.item);
+            setActiveNote(full);
             router.push('/notes');
         } else {
-            router.push(`/boards/${entry.item.boardId?._id}`);
+            router.push(`/boards/${entry.item.boardId?._id}?card=${entry.item._id}`);
         }
         onClose();
     }, [setActiveNote, router, onClose]);
@@ -113,11 +147,29 @@ export default function UnifiedSearch({ isOpen, onClose }) {
                         value={query}
                         onChange={e => setQuery(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder="Search notes and cards…"
+                        placeholder={mode === 'ai' ? 'Describe what you are looking for…' : 'Search notes and cards…'}
                         className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted outline-none"
                     />
                     {loading && (
                         <span className="text-[10px] text-text-muted animate-pulse shrink-0">Searching…</span>
+                    )}
+                    {canSemantic && (
+                        <div className="flex bg-surface-raised rounded-md p-0.5 border border-border-subtle shrink-0">
+                            <button
+                                onClick={() => { setMode('keyword'); inputRef.current?.focus(); }}
+                                className={cn('px-2 py-0.5 text-[10px] rounded transition-colors', mode === 'keyword' ? 'bg-accent text-white' : 'text-text-muted hover:text-text-primary')}
+                                title="Search by keywords"
+                            >
+                                Text
+                            </button>
+                            <button
+                                onClick={() => { setMode('ai'); inputRef.current?.focus(); }}
+                                className={cn('px-2 py-0.5 text-[10px] rounded transition-colors flex items-center gap-1', mode === 'ai' ? 'bg-purple-500 text-white' : 'text-text-muted hover:text-purple-400')}
+                                title="Search by meaning (AI embeddings)"
+                            >
+                                <Sparkles className="w-2.5 h-2.5" /> AI
+                            </button>
+                        </div>
                     )}
                     <button onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors">
                         <X className="w-4 h-4" />
@@ -132,7 +184,11 @@ export default function UnifiedSearch({ isOpen, onClose }) {
                         </p>
                     )}
 
-                    {query.trim() && !loading && allResults.length === 0 && (
+                    {error && (
+                        <p className="px-4 py-3 text-xs text-red-400">{error}</p>
+                    )}
+
+                    {query.trim() && !loading && !error && allResults.length === 0 && (
                         <p className="px-4 py-8 text-sm text-text-muted text-center">
                             No results for &ldquo;{query}&rdquo;
                         </p>

@@ -109,24 +109,36 @@ export function AIProvider({ children }) {
     }, [isConfigured, activeProvider, apiKeys, getProviderOptions, checkRateLimit]);
 
     /**
-     * Get embedding vector for text (for semantic search).
+     * Which provider/model embeddings come from. Anthropic (and custom endpoints
+     * without an embedding model) can't embed — fall back to OpenAI/Gemini keys.
      */
-    const embed = useCallback(async (text) => {
-        if (!isConfigured) throw new Error('AI is not configured.');
-        // Anthropic (and custom endpoints without an embedding model) can't embed — fall back to available provider
+    const resolveEmbedding = useCallback(() => {
         const canEmbed = activeProvider === 'custom'
             ? Boolean(aiConfig.custom?.embeddingModel?.trim())
             : activeProvider !== 'anthropic';
         const provider = canEmbed
             ? activeProvider
             : (apiKeys.openai ? 'openai' : apiKeys.gemini ? 'gemini' : null);
-        if (!provider) throw new Error('Embeddings require an OpenAI or Gemini key, or an embedding model on the custom provider.');
-        const key = apiKeys[provider];
-        checkRateLimit();
+        if (!provider) return null;
+        const model = provider === 'custom' ? aiConfig.custom.embeddingModel.trim()
+            : provider === 'gemini' ? 'text-embedding-004' : 'text-embedding-3-small';
+        return { provider, model, key: `${provider}:${model}` };
+    }, [activeProvider, apiKeys, aiConfig]);
+
+    /**
+     * Get embedding vector for text, or vectors for an array of texts (one request).
+     */
+    const embed = useCallback(async (text) => {
+        if (!isConfigured) throw new Error('AI is not configured.');
+        const target = resolveEmbedding();
+        if (!target) throw new Error('Embeddings require an OpenAI or Gemini key, or an embedding model on the custom provider.');
+        const { provider } = target;
+        // Local endpoints have no quota to protect
+        if (provider !== 'custom') checkRateLimit();
         // Chat model overrides don't apply to embeddings
         const { baseUrl, embeddingModel, proxyUrl } = getProviderOptions(provider);
-        return getEmbedding(provider, key, text, { baseUrl, embeddingModel, proxyUrl });
-    }, [isConfigured, activeProvider, apiKeys, aiConfig, getProviderOptions, checkRateLimit]);
+        return getEmbedding(provider, apiKeys[provider], text, { baseUrl, embeddingModel, proxyUrl });
+    }, [isConfigured, resolveEmbedding, apiKeys, getProviderOptions, checkRateLimit]);
 
     /**
      * Validate a specific provider key.
@@ -178,6 +190,7 @@ export function AIProvider({ children }) {
             askAI,
             askAIStream,
             embed,
+            resolveEmbedding,
 
             // Key management
             setProviderKey,

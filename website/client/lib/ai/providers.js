@@ -203,12 +203,29 @@ async function getOpenAIEmbedding(apiKey, text, { url = 'https://api.openai.com/
             input: text,
         }),
     });
-    if (!res.ok) throw new Error(`Embedding error: ${res.status}`);
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((typeof err.error === 'string' ? err.error : err.error?.message) || `Embedding error: ${res.status}`);
+    }
     const data = await res.json();
+    // Array input → array of vectors in input order
+    if (Array.isArray(text)) return [...data.data].sort((a, b) => a.index - b.index).map(d => d.embedding);
     return data.data[0].embedding;
 }
 
 async function getGeminiEmbedding(apiKey, text) {
+    if (Array.isArray(text)) {
+        const res = await fetch(`${GEMINI_URL}/text-embedding-004:batchEmbedContents?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                requests: text.map(t => ({ model: 'models/text-embedding-004', content: { parts: [{ text: t }] } })),
+            }),
+        });
+        if (!res.ok) throw new Error(`Gemini embedding error: ${res.status}`);
+        const data = await res.json();
+        return data.embeddings.map(e => e.values);
+    }
     const res = await fetch(`${GEMINI_URL}/text-embedding-004:embedContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -343,7 +360,7 @@ export async function* streamProvider(provider, apiKey, messages, options = {}) 
 }
 
 /**
- * Get an embedding vector for text.
+ * Get an embedding vector for text, or an array of vectors for an array of texts.
  * Currently supported: openai, gemini, custom (with embeddingModel)
  */
 export async function getEmbedding(provider, apiKey, text, options = {}) {

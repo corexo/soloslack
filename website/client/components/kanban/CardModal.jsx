@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
-import { FileText, Trash2, Eye, Edit3, Calendar, CheckSquare, Plus, X, Tag, MessageSquare, Pencil, Send, Sparkles, Bot, Paperclip } from 'lucide-react';
+import { FileText, Trash2, Eye, Edit3, Calendar, CheckSquare, Plus, X, Tag, MessageSquare, Pencil, Send, Sparkles, Bot, Paperclip, GitBranch, ListChecks } from 'lucide-react';
 import Link from 'next/link';
 import Modal from '../ui/Modal';
 import Badge from '../ui/Badge';
@@ -17,13 +17,14 @@ import { timeAgo, toInputDateValue } from '@/lib/utils/formatDate';
 import { LABEL_COLORS, getLabelColor } from '@/lib/utils/labelColors';
 import { useAI } from '@/context/AIContext';
 import { useUndo } from '@/context/UndoContext';
-import { cardDescriptionPrompt } from '@/lib/ai/prompts';
+import { refineTicketPrompt, parseRefinedTicket, commentThreadSummaryPrompt } from '@/lib/ai/prompts';
+import CardBranch from './CardBranch';
 
 const PRIORITIES = ['low', 'medium', 'high'];
 // Agents post updates continuously — refresh comments while the card is open
 const COMMENT_POLL_MS = 10_000;
 
-export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete }) {
+export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete, gitRepo = null, boardName = '' }) {
     const { showToast } = useUndo();
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
@@ -50,6 +51,9 @@ export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete })
     const [agents, setAgents] = useState([]);
     const [assignee, setAssignee] = useState('');
     const [aiGenerating, setAiGenerating] = useState(false);
+    const [refined, setRefined] = useState(null); // { description, checklist } preview before applying
+    const [threadSummary, setThreadSummary] = useState('');
+    const [summarizing, setSummarizing] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
     const newItemRef = useRef(null);
     const labelInputRef = useRef(null);
@@ -73,6 +77,8 @@ export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete })
         setLabels(card.labels ?? []);
         setAssignee(card.assignee ?? '');
         setCommentFiles([]);
+        setRefined(null);
+        setThreadSummary('');
         setNewItemText('');
         setIsLabelAdding(false);
         setNewLabelText('');
@@ -296,21 +302,62 @@ export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete })
         }
     };
 
-    const handleGenerateDescription = async () => {
+    // Rewrite the ticket into an agent-ready spec; shown as a preview first
+    const handleRefine = async () => {
         if (!title.trim() || aiGenerating) return;
         setAiGenerating(true);
         try {
-            const result = await askAI(cardDescriptionPrompt(title), { maxTokens: 1024 });
-            const parsed = JSON.parse(result.text.replace(/```json?\n?/g, '').replace(/```/g, '').trim());
-            const newDesc = parsed.description || '';
-            const newChecklist = (parsed.checklist || []).map(text => ({ text: String(text).slice(0, 200), completed: false }));
-            setDescription(newDesc);
-            setChecklist(newChecklist);
-            onUpdate(card._id, { description: newDesc, checklist: newChecklist });
+            const result = await askAI(refineTicketPrompt({
+                title, description, checklist, boardName, branch: card.branch,
+                labels: labels.map(l => l.text),
+            }), { maxTokens: 2048, temperature: 0.4 });
+            const parsed = parseRefinedTicket(result.text);
+            if (!parsed.description) throw new Error('Empty response from AI');
+            setRefined(parsed);
         } catch (err) {
-            showToast({ label: 'AI generation failed: ' + err.message, type: 'error' });
+            showToast({ label: 'AI refine failed: ' + err.message, type: 'error' });
         } finally {
             setAiGenerating(false);
+        }
+    };
+
+    const applyRefined = () => {
+        // Keep completed items; replace the open ones with the AI's steps
+        const done = checklist.filter(i => i.completed);
+        const doneTexts = new Set(done.map(i => i.text.toLowerCase()));
+        const newChecklist = [
+            ...done,
+            ...refined.checklist.filter(t => !doneTexts.has(t.toLowerCase())).map(text => ({ text, completed: false })),
+        ];
+        setDescription(refined.description);
+        setChecklist(newChecklist);
+        setMode('preview');
+        onUpdate(card._id, { description: refined.description, checklist: newChecklist });
+        setRefined(null);
+    };
+
+    const handleSummarizeThread = async () => {
+        if (summarizing || comments.length === 0) return;
+        setSummarizing(true);
+        try {
+            const result = await askAI(commentThreadSummaryPrompt({
+                title, description, comments: [...comments].reverse(),
+            }), { maxTokens: 2048, temperature: 0.3 });
+            setThreadSummary(result.text.trim());
+        } catch (err) {
+            showToast({ label: 'Summary failed: ' + err.message, type: 'error' });
+        } finally {
+            setSummarizing(false);
+        }
+    };
+
+    const postSummaryAsComment = async () => {
+        try {
+            const res = await cardsApi.createComment(card._id, `**AI summary**\n\n${threadSummary}`);
+            setComments(prev => [res.data, ...prev]);
+            setThreadSummary('');
+        } catch (err) {
+            showToast({ label: 'Could not post summary: ' + err.message, type: 'error' });
         }
     };
 
@@ -397,6 +444,21 @@ export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete })
                             )}
                         </select>
                     )}
+                </section>
+
+                {/* Git branch */}
+                <section>
+                    <label className="block text-xs font-semibold text-text-muted uppercase mb-1.5">
+                        <span className="flex items-center gap-1.5">
+                            <GitBranch className="w-3 h-3" /> Branch
+                        </span>
+                    </label>
+                    <CardBranch
+                        repo={gitRepo}
+                        branch={card.branch}
+                        cardTitle={title}
+                        onChange={(branch) => onUpdate(card._id, { branch })}
+                    />
                 </section>
 
                 {/* Due Date */}
@@ -517,13 +579,13 @@ export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete })
                             {aiConfigured && (
                                 <button
                                     type="button"
-                                    onClick={handleGenerateDescription}
+                                    onClick={handleRefine}
                                     disabled={aiGenerating || !title.trim()}
-                                    title="Generate description with AI"
+                                    title="Write goal, acceptance criteria and checklist so an agent can work on it"
                                     className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20 hover:bg-purple-500/20 transition-colors disabled:opacity-30"
                                 >
                                     <Sparkles className={cn('w-3 h-3', aiGenerating && 'animate-spin')} />
-                                    {aiGenerating ? 'Generating...' : 'AI Generate'}
+                                    {aiGenerating ? 'Refining…' : description.trim() ? 'AI Refine' : 'AI Generate'}
                                 </button>
                             )}
                         </div>
@@ -548,6 +610,36 @@ export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete })
                             </button>
                         </div>
                     </div>
+                    {refined && (
+                        <div className="mb-2 p-3 rounded-md border border-purple-500/30 bg-purple-500/5 space-y-2">
+                            <p className="text-[10px] font-semibold uppercase text-purple-400 flex items-center gap-1">
+                                <Sparkles className="w-3 h-3" /> AI proposal — replaces the description, open checklist items are replaced
+                            </p>
+                            <div className="max-h-[280px] overflow-y-auto">
+                                <MarkdownRenderer content={refined.description} compact />
+                                {refined.checklist.length > 0 && (
+                                    <ul className="mt-2 space-y-0.5">
+                                        {refined.checklist.map((t, i) => (
+                                            <li key={i} className="text-xs text-text-primary flex items-center gap-1.5">
+                                                <ListChecks className="w-3 h-3 text-purple-400 shrink-0" /> {t}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button onClick={applyRefined} className="px-3 py-1 rounded-md bg-purple-500/20 text-purple-300 text-xs font-medium hover:bg-purple-500/30">
+                                    Apply
+                                </button>
+                                <button onClick={handleRefine} disabled={aiGenerating} className="text-xs text-text-muted hover:text-text-primary disabled:opacity-30">
+                                    Try again
+                                </button>
+                                <button onClick={() => setRefined(null)} className="text-xs text-text-muted hover:text-text-primary">
+                                    Discard
+                                </button>
+                            </div>
+                        </div>
+                    )}
                     {mode === 'edit' ? (
                         <textarea
                             value={description}
@@ -648,7 +740,32 @@ export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete })
                         {comments.length > 0 && (
                             <span className="text-text-muted font-normal">{comments.length}</span>
                         )}
+                        {aiConfigured && comments.length > 1 && (
+                            <button
+                                type="button"
+                                onClick={handleSummarizeThread}
+                                disabled={summarizing}
+                                className="ml-auto normal-case inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20 hover:bg-purple-500/20 transition-colors disabled:opacity-30"
+                            >
+                                <Sparkles className={cn('w-3 h-3', summarizing && 'animate-spin')} />
+                                {summarizing ? 'Summarizing…' : 'Summarize'}
+                            </button>
+                        )}
                     </label>
+
+                    {threadSummary && (
+                        <div className="mb-3 p-3 rounded-md border border-purple-500/30 bg-purple-500/5">
+                            <MarkdownRenderer content={threadSummary} compact />
+                            <div className="flex items-center gap-3 mt-2">
+                                <button onClick={postSummaryAsComment} className="text-[11px] text-purple-300 hover:text-purple-200 font-medium">
+                                    Post as comment
+                                </button>
+                                <button onClick={() => setThreadSummary('')} className="text-[11px] text-text-muted hover:text-text-primary">
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    )}
 
                     {/* New comment input */}
                     <div className="flex items-start gap-2 mb-2">

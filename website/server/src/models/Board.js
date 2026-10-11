@@ -18,6 +18,12 @@ const boardSchema = new mongoose.Schema(
             default: '',
             maxlength: [500, 'Description cannot exceed 500 characters'],
         },
+        // Repository directory name under REPOS_DIR whose branches tickets can link to
+        gitRepo: {
+            type: String,
+            default: null,
+            trim: true,
+        },
         isPinned: {
             type: Boolean,
             default: false,

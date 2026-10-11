@@ -35,6 +35,8 @@ echo "build green" | soloslack comment <id> -     # text from stdin
 soloslack download <attachment-id>                # e.g. a screenshot the user attached
 soloslack move <id> Done
 soloslack assign <id> claude-reviewer             # hand over to another agent
+soloslack branch <id>                             # which git branch belongs to this ticket
+soloslack branch <id> feat/login-form             # link the branch you created
 ```
 
 `--json` on `tasks` / `show` gives machine-readable output.
@@ -44,7 +46,9 @@ The board and open card dialogs refresh automatically (comments every 10 s, boar
 
 > You have tickets on the SoloSlack board. Use the `soloslack` CLI:
 > run `soloslack tasks`, pick a ticket, `soloslack show <id>` to read it, and
-> `soloslack move <id> "In Progress"`. Post a short progress comment after each
+> `soloslack move <id> "In Progress"`. If the ticket has a branch (`repo`/`branch` in
+> `show`), work on that branch in `~/projects/<repo>`; if you create one, link it with
+> `soloslack branch <id> <name>`. Post a short progress comment after each
 > meaningful step (`soloslack comment <id> "..."`), attach screenshots of UI changes
 > (`-a file.png`) and put longer write-ups in a markdown file (`-f report.md`).
 > When finished, post a summary and `soloslack move <id> Done`.
@@ -58,6 +62,6 @@ All endpoints need `Authorization: Bearer <token>`.
 | GET | `/api/agent/me` | |
 | GET | `/api/agent/tasks?assignee=any&column=<name>` | |
 | GET | `/api/agent/tasks/:id` | |
-| PATCH | `/api/agent/tasks/:id` | `{ column?, priority?, assignee? }` (column by name or id) |
+| PATCH | `/api/agent/tasks/:id` | `{ column?, priority?, assignee?, branch? }` (column by name or id) |
 | POST | `/api/agent/tasks/:id/comments` | JSON `{ body }` or multipart `body` + `files` (max 10 × 20 MB) |
 | GET | `/api/attachments/:id/raw` | (no token needed) |
