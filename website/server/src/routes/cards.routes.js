@@ -3,6 +3,7 @@ const router = express.Router();
 const { getCards, getCardById, createCard, updateCard, moveCard, deleteCard, getUpcomingCards, bulkDeleteCards, bulkMoveCards, bulkArchiveCards, bulkUnarchiveCards } = require('../controllers/cards.controller');
 const { getComments, createComment, updateComment, deleteComment } = require('../controllers/comments.controller');
 const { upload, MAX_FILES } = require('../config/uploads');
+const { getCardAttachments, uploadCardAttachments } = require('../controllers/attachments.controller');
 
 router.route('/')
     .get(getCards)
@@ -26,6 +27,11 @@ router.patch('/:id/move', moveCard);
 router.route('/:cardId/comments')
     .get(getComments)
     .post(upload.array('files', MAX_FILES), createComment);
+
+// Files attached to the ticket itself
+router.route('/:cardId/attachments')
+    .get(getCardAttachments)
+    .post(upload.array('files', MAX_FILES), uploadCardAttachments);
 
 router.route('/:cardId/comments/:commentId')
     .patch(updateComment)

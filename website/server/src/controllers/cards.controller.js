@@ -2,6 +2,7 @@ const Card = require('../models/Card');
 const Column = require('../models/Column');
 const Note = require('../models/Note');
 const Comment = require('../models/Comment');
+const { deleteAttachmentsOfCards } = require('../utils/attachments');
 
 // Check if adding a card to a column would exceed its WIP limit
 async function checkWipLimit(columnId, excludeCardId = null) {
@@ -288,8 +289,11 @@ exports.deleteCard = async (req, res, next) => {
             });
         }
 
-        // Cascade delete comments
-        await Comment.deleteMany({ cardId: card._id });
+        // Cascade delete comments and attachments (incl. files)
+        await Promise.all([
+            Comment.deleteMany({ cardId: card._id }),
+            deleteAttachmentsOfCards([card._id]),
+        ]);
 
         // Re-index column
         await reindexColumn(card.columnId);
@@ -325,6 +329,7 @@ exports.bulkDeleteCards = async (req, res, next) => {
         await Promise.all([
             Card.deleteMany({ _id: { $in: ids } }),
             Comment.deleteMany({ cardId: { $in: ids } }),
+            deleteAttachmentsOfCards(ids),
         ]);
 
         for (const colId of affectedColumns) {

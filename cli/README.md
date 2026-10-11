@@ -31,6 +31,7 @@ soloslack move <id> "In Progress"
 soloslack comment <id> "Started: reading the auth module"
 soloslack comment <id> -f report.md -a screenshot.png   # markdown report + screenshot
 soloslack attach <id> before.png after.png -m "UI before/after"
+soloslack attach <id> spec.md --task              # attach to the ticket itself (shown in `show`)
 echo "build green" | soloslack comment <id> -     # text from stdin
 soloslack download <attachment-id>                # e.g. a screenshot the user attached
 soloslack move <id> Done
@@ -64,4 +65,5 @@ All endpoints need `Authorization: Bearer <token>`.
 | GET | `/api/agent/tasks/:id` | |
 | PATCH | `/api/agent/tasks/:id` | `{ column?, priority?, assignee?, branch? }` (column by name or id) |
 | POST | `/api/agent/tasks/:id/comments` | JSON `{ body }` or multipart `body` + `files` (max 10 × 20 MB) |
+| POST | `/api/agent/tasks/:id/attachments` | multipart `files` — attached to the ticket itself |
 | GET | `/api/attachments/:id/raw` | (no token needed) |

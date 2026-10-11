@@ -49,6 +49,9 @@ export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete, g
     const [commentFiles, setCommentFiles] = useState([]);
     const [isPostingComment, setIsPostingComment] = useState(false);
     const [agents, setAgents] = useState([]);
+    const [attachments, setAttachments] = useState([]);
+    const [uploadingAttachments, setUploadingAttachments] = useState(false);
+    const [isDraggingFiles, setIsDraggingFiles] = useState(false);
     const [assignee, setAssignee] = useState('');
     const [aiGenerating, setAiGenerating] = useState(false);
     const [refined, setRefined] = useState(null); // { description, checklist } preview before applying
@@ -59,6 +62,7 @@ export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete, g
     const labelInputRef = useRef(null);
     const commentInputRef = useRef(null);
     const commentFileRef = useRef(null);
+    const attachmentInputRef = useRef(null);
 
     const { askAI, isConfigured: aiConfigured } = useAI();
 
@@ -99,12 +103,17 @@ export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete, g
             .then(res => { if (!cancelled) setComments(res.data); })
             .catch(() => { if (!cancelled) setComments([]); })
             .finally(() => { if (!cancelled) setCommentsLoading(false); });
+        const loadAttachments = () => cardsApi.getAttachments(card._id)
+            .then(res => { if (!cancelled) setAttachments(res.data); })
+            .catch(() => {});
+        loadAttachments();
 
         const poll = setInterval(() => {
             if (document.visibilityState !== 'visible') return;
             cardsApi.getComments(card._id)
                 .then(res => { if (!cancelled) setComments(res.data); })
                 .catch(() => {});
+            loadAttachments();
         }, COMMENT_POLL_MS);
         return () => { cancelled = true; clearInterval(poll); };
     }, [card?._id, isOpen]);
@@ -237,6 +246,31 @@ export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete, g
     const handleLabelKeyDown = (e) => {
         if (e.key === 'Enter') { e.preventDefault(); handleLabelAdd(); }
         if (e.key === 'Escape') { setIsLabelAdding(false); }
+    };
+
+    const handleAttachmentUpload = async (fileList) => {
+        const files = Array.from(fileList || []).slice(0, 10);
+        if (!files.length || !card) return;
+        setUploadingAttachments(true);
+        try {
+            const res = await cardsApi.uploadAttachments(card._id, files);
+            setAttachments(prev => [...prev, ...res.data]);
+        } catch (err) {
+            showToast({ label: 'Upload failed: ' + err.message, type: 'error' });
+        } finally {
+            setUploadingAttachments(false);
+        }
+    };
+
+    const handleAttachmentDelete = async (attachment) => {
+        if (!confirm(`Delete "${attachment.name}"?`)) return;
+        setAttachments(prev => prev.filter(a => a._id !== attachment._id));
+        try {
+            await cardsApi.deleteAttachment(attachment._id);
+        } catch (err) {
+            showToast({ label: 'Delete failed: ' + err.message, type: 'error' });
+            cardsApi.getAttachments(card._id).then(res => setAttachments(res.data)).catch(() => {});
+        }
     };
 
     const addCommentFiles = (fileList) => {
@@ -655,6 +689,51 @@ export default function CardModal({ isOpen, onClose, card, onUpdate, onDelete, g
                                 <p className="text-sm text-text-muted italic">No description</p>
                             )}
                         </div>
+                    )}
+                </section>
+
+                {/* Attachments (on the ticket itself) */}
+                <section
+                    onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setIsDraggingFiles(true); } }}
+                    onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setIsDraggingFiles(false); }}
+                    onDrop={(e) => { e.preventDefault(); setIsDraggingFiles(false); handleAttachmentUpload(e.dataTransfer.files); }}
+                    onPaste={(e) => { if (e.clipboardData?.files?.length) { e.preventDefault(); handleAttachmentUpload(e.clipboardData.files); } }}
+                    className={cn('rounded-md transition-colors', isDraggingFiles && 'ring-2 ring-accent/50 bg-accent/5')}
+                >
+                    <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-xs font-semibold text-text-muted uppercase flex items-center gap-1.5">
+                            <Paperclip className="w-3.5 h-3.5" /> Attachments
+                            {attachments.length > 0 && <span className="font-normal">{attachments.length}</span>}
+                        </label>
+                        <button
+                            type="button"
+                            onClick={() => attachmentInputRef.current?.click()}
+                            disabled={uploadingAttachments}
+                            className="text-xs text-text-muted hover:text-accent transition-colors flex items-center gap-1 disabled:opacity-40"
+                        >
+                            {uploadingAttachments
+                                ? <div className="w-3 h-3 border border-accent/30 border-t-accent rounded-full animate-spin" />
+                                : <Plus className="w-3 h-3" />}
+                            Add files
+                        </button>
+                        <input
+                            ref={attachmentInputRef}
+                            type="file"
+                            multiple
+                            className="hidden"
+                            onChange={(e) => { handleAttachmentUpload(e.target.files); e.target.value = ''; }}
+                        />
+                    </div>
+                    {attachments.length > 0 ? (
+                        <CommentAttachments attachments={attachments} onDelete={handleAttachmentDelete} />
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() => attachmentInputRef.current?.click()}
+                            className="w-full py-3 border border-dashed border-border-default rounded-md text-[11px] text-text-muted hover:text-text-primary hover:border-accent transition-all"
+                        >
+                            Drop files here, paste a screenshot or click to upload (specs, mockups, logs…)
+                        </button>
                     )}
                 </section>
 

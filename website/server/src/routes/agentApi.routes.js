@@ -14,5 +14,6 @@ router.get('/tasks', agentApi.getTasks);
 router.get('/tasks/:id', agentApi.getTask);
 router.patch('/tasks/:id', agentApi.updateTask);
 router.post('/tasks/:id/comments', upload.array('files', MAX_FILES), agentApi.addComment);
+router.post('/tasks/:id/attachments', upload.array('files', MAX_FILES), agentApi.addAttachments);
 
 module.exports = router;

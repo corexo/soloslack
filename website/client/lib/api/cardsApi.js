@@ -35,6 +35,18 @@ export const cardsApi = {
     bulkArchive: (ids) => request('/cards/bulk-archive', { method: 'POST', body: JSON.stringify({ ids }) }),
     bulkUnarchive: (ids) => request('/cards/bulk-unarchive', { method: 'POST', body: JSON.stringify({ ids }) }),
 
+    // Ticket attachments (files on the card itself)
+    getAttachments: (cardId) => request(`/cards/${cardId}/attachments`),
+    uploadAttachments: async (cardId, files) => {
+        const form = new FormData();
+        files.forEach(f => form.append('files', f, f.name));
+        const res = await fetch(`${BASE}/cards/${cardId}/attachments`, { method: 'POST', body: form });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Upload failed');
+        return data;
+    },
+    deleteAttachment: (attachmentId) => request(`/attachments/${attachmentId}`, { method: 'DELETE' }),
+
     // Comments
     getComments: (cardId) => request(`/cards/${cardId}/comments`),
     createComment: async (cardId, body, files = []) => {

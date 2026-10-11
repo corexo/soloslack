@@ -4,6 +4,7 @@ const Note = require('../models/Note');
 const Card = require('../models/Card');
 const Column = require('../models/Column');
 const Comment = require('../models/Comment');
+const { deleteAttachmentsOfCards } = require('../utils/attachments');
 
 // @desc    Get all workspaces with board/note counts
 // @route   GET /api/workspaces
@@ -129,6 +130,7 @@ exports.deleteWorkspace = async (req, res, next) => {
         // 3. Cascade: delete comments, then cards, columns, and archive boards
         await Promise.all([
             cardIds.length > 0 ? Comment.deleteMany({ cardId: { $in: cardIds } }) : Promise.resolve(),
+            deleteAttachmentsOfCards(cardIds),
             cardIds.length > 0 ? Card.deleteMany({ boardId: { $in: boardIds } }) : Promise.resolve(),
             boardIds.length > 0 ? Column.deleteMany({ boardId: { $in: boardIds } }) : Promise.resolve(),
             Board.deleteMany({ workspaceId: req.params.id }),

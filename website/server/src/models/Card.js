@@ -56,6 +56,12 @@ const cardSchema = new mongoose.Schema(
             trim: true,
             maxlength: 200,
         },
+        // Files attached to the ticket itself (comment attachments not included)
+        attachmentCount: {
+            type: Number,
+            default: 0,
+            min: 0,
+        },
         dueDate: {
             type: Date,
             default: null,

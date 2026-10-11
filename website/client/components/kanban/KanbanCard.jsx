@@ -1,6 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Calendar, MessageSquare, Bot, GitBranch } from 'lucide-react';
+import { Calendar, MessageSquare, Bot, GitBranch, Paperclip } from 'lucide-react';
 import Badge from '../ui/Badge';
 import AnimatedIcon from '../ui/AnimatedIcon';
 import { cn } from '@/lib/utils/cn';
@@ -141,8 +141,8 @@ export default function KanbanCard({ card, onClick, isOverlay, selectMode, isSel
                 </div>
             )}
 
-            {/* Footer: due date + linked note + comments indicator */}
-            {(dueDateText || card.linkedNoteId || card.commentCount > 0) && (
+            {/* Footer: due date + linked note + comments / attachments indicators */}
+            {(dueDateText || card.linkedNoteId || card.commentCount > 0 || card.attachmentCount > 0) && (
                 <div className="mt-2.5 flex items-center gap-2 flex-wrap">
                     {dueDateText && (
                         <span
@@ -169,6 +169,13 @@ export default function KanbanCard({ card, onClick, isOverlay, selectMode, isSel
                         <span className="flex items-center gap-1 text-[11px] text-text-muted bg-surface-raised px-1.5 py-0.5 rounded">
                             <MessageSquare className="w-3 h-3" />
                             {card.commentCount}
+                        </span>
+                    )}
+
+                    {card.attachmentCount > 0 && (
+                        <span className="flex items-center gap-1 text-[11px] text-text-muted bg-surface-raised px-1.5 py-0.5 rounded" title="Attachments">
+                            <Paperclip className="w-3 h-3" />
+                            {card.attachmentCount}
                         </span>
                     )}
                 </div>

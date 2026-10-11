@@ -5,7 +5,7 @@ const Board = require('../models/Board');
 const Comment = require('../models/Comment');
 const Agent = require('../models/Agent');
 const { checkWipLimit } = require('./cards.controller');
-const { createCommentWithFiles, removeFiles, serializeComment } = require('../utils/attachments');
+const { createCommentWithFiles, createCardAttachments, getCardAttachments, removeFiles, serializeComment } = require('../utils/attachments');
 
 const notFound = (what) => {
     const error = new Error(`${what} not found`);
@@ -31,6 +31,7 @@ const toTask = (card, board, column) => ({
     repo: board?.gitRepo || null,
     dueDate: card.dueDate,
     labels: (card.labels || []).map(l => l.text),
+    attachmentCount: card.attachmentCount || 0,
     checklist: (card.checklist || []).map(i => ({ text: i.text, completed: i.completed })),
     board: board ? { id: board._id, name: board.name } : null,
     column: column ? { id: column._id, name: column.name } : null,
@@ -75,10 +76,11 @@ exports.getTasks = async (req, res, next) => {
 exports.getTask = async (req, res, next) => {
     try {
         const card = await findCard(req.params.id);
-        const [board, columns, comments] = await Promise.all([
+        const [board, columns, comments, attachments] = await Promise.all([
             Board.findById(card.boardId).lean(),
             Column.find({ boardId: card.boardId }).sort({ order: 1 }).lean(),
             Comment.find({ cardId: card._id }).sort({ createdAt: 1 }).populate('attachments').lean(),
+            getCardAttachments(card._id),
         ]);
         const column = columns.find(c => String(c._id) === String(card.columnId));
 
@@ -87,6 +89,7 @@ exports.getTask = async (req, res, next) => {
             data: {
                 ...toTask(card, board, column),
                 columns: columns.map(c => ({ id: c._id, name: c.name })),
+                attachments,
                 comments: comments.map(serializeComment),
             },
         });
@@ -108,6 +111,19 @@ exports.addComment = async (req, res, next) => {
             authorType: 'agent',
         });
         res.status(201).json({ success: true, data: comment });
+    } catch (error) {
+        await removeFiles(req.files);
+        next(error);
+    }
+};
+
+// @desc    Attach files to the ticket itself (multipart `files`)
+// @route   POST /api/agent/tasks/:id/attachments
+exports.addAttachments = async (req, res, next) => {
+    try {
+        const card = await findCard(req.params.id);
+        const data = await createCardAttachments({ cardId: card._id, files: req.files || [], uploadedBy: req.agent.name });
+        res.status(201).json({ success: true, data });
     } catch (error) {
         await removeFiles(req.files);
         next(error);

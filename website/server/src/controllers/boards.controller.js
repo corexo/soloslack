@@ -2,6 +2,7 @@ const Board = require('../models/Board');
 const Column = require('../models/Column');
 const Card = require('../models/Card');
 const Comment = require('../models/Comment');
+const { deleteAttachmentsOfCards } = require('../utils/attachments');
 const Note = require('../models/Note');
 
 // @desc    Get all boards
@@ -235,6 +236,7 @@ exports.permanentDeleteBoard = async (req, res, next) => {
 
         await Promise.all([
             Comment.deleteMany({ cardId: { $in: cardIds } }),
+            deleteAttachmentsOfCards(cardIds),
             Card.deleteMany({ boardId }),
             Column.deleteMany({ boardId }),
             Board.findByIdAndDelete(boardId),

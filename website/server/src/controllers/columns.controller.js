@@ -1,5 +1,7 @@
 const Column = require('../models/Column');
 const Card = require('../models/Card');
+const Comment = require('../models/Comment');
+const { deleteAttachmentsOfCards } = require('../utils/attachments');
 
 // @desc    Get all columns for a board
 // @route   GET /api/columns
@@ -88,8 +90,11 @@ exports.deleteColumn = async (req, res, next) => {
             throw error;
         }
 
-        // Cascade delete cards in this column
+        // Cascade delete cards in this column (with their comments and attachments)
+        const cardIds = await Card.find({ columnId }).distinct('_id');
         await Promise.all([
+            Comment.deleteMany({ cardId: { $in: cardIds } }),
+            deleteAttachmentsOfCards(cardIds),
             Card.deleteMany({ columnId }),
             Column.findByIdAndDelete(columnId),
         ]);

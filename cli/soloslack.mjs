@@ -21,8 +21,9 @@ Tickets:
   soloslack show <id> [--json]          Ticket details, checklist, comments, attachments
   soloslack comment <id> [text] [-f file.md] [-a file]...
                                         Post an update. Text from argument, -f file or stdin ("-")
-  soloslack attach <id> <file>... [-m text]
-                                        Upload screenshots / markdown files
+  soloslack attach <id> <file>... [-m text] [--task]
+                                        Upload screenshots / markdown files as a comment
+                                        (--task: attach to the ticket itself, e.g. specs/results)
   soloslack move <id> <column>          Move ticket to a column (by name, e.g. "Done")
   soloslack assign <id> <agent|none>    Hand the ticket to another agent / unassign
   soloslack branch <id> [name|none]     Show or link the git branch you work on for this ticket
@@ -123,6 +124,10 @@ function printTask(t, baseUrl) {
     if (t.labels.length) console.log(`labels: ${t.labels.join(', ')}`);
     console.log(`columns: ${t.columns.map(c => c.name).join(' | ')}`);
     if (t.description) console.log(`\n## Description\n${t.description}`);
+    if (t.attachments?.length) {
+        console.log(`\n## Attachments (${t.attachments.length})`);
+        for (const a of t.attachments) console.log(`📎 ${a.name} (${a.mimeType}, ${a.size} B) id=${a._id} ${origin}${a.url}`);
+    }
     if (t.checklist.length) {
         console.log('\n## Checklist');
         t.checklist.forEach(i => console.log(`- [${i.completed ? 'x' : ' '}] ${i.text}`));
@@ -187,8 +192,13 @@ const commands = {
     },
 
     async attach(argv) {
-        const { pos: [id, ...files], flags } = parseArgs(argv, { alias: { '--message': 'm' } });
-        if (!id || !files.length) fail('Usage: soloslack attach <id> <file>... [-m text]');
+        const { pos: [id, ...files], flags } = parseArgs(argv, { bool: ['task'], alias: { '--message': 'm' } });
+        if (!id || !files.length) fail('Usage: soloslack attach <id> <file>... [-m text] [--task]');
+        if (flags.task) {
+            if (flags.m) fail('-m is not supported with --task (ticket attachments have no text)');
+            const added = await api('POST', `/agent/tasks/${id}/attachments`, { form: fileForm(files) });
+            return console.log(`Attached ${added.length} file(s) to the ticket.`);
+        }
         return commands.comment([id, ...(flags.m ? [flags.m] : []), ...files.flatMap(f => ['-a', f])]);
     },
 

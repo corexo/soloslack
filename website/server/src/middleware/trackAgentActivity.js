@@ -9,9 +9,10 @@ function classify(req) {
     const path = req.path;
     if (path === '/me') return { action: 'ping' };
     if (path === '/tasks' && method === 'GET') return { action: 'list' };
-    const m = /^\/tasks\/([^/]+)(\/comments)?$/.exec(path);
+    const m = /^\/tasks\/([^/]+)(\/comments|\/attachments)?$/.exec(path);
     if (!m) return null;
-    if (m[2] && method === 'POST') return { action: 'comment', cardId: m[1] };
+    if (m[2] === '/comments' && method === 'POST') return { action: 'comment', cardId: m[1] };
+    if (m[2] === '/attachments' && method === 'POST') return { action: 'attach', cardId: m[1] };
     if (method === 'PATCH') return { action: 'update', cardId: m[1] };
     if (method === 'GET') return { action: 'read', cardId: m[1] };
     return null;
@@ -25,6 +26,9 @@ function describe(action, body = {}, files = []) {
         if (body.branch !== undefined) parts.push(body.branch ? `branch ${body.branch}` : 'branch unlinked');
         if (body.priority !== undefined) parts.push(`priority ${body.priority}`);
         return parts.join(', ') || null;
+    }
+    if (action === 'attach') {
+        return files.map(f => Buffer.from(f.originalname, 'latin1').toString('utf8')).join(', ') || null;
     }
     if (action === 'comment') {
         const text = (body.body || '').trim().replace(/\s+/g, ' ').slice(0, 140);
