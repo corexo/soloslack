@@ -7,7 +7,7 @@ import {
 } from 'recharts';
 import {
     getUsageSummary, getUsageByDay, getUsageByWeek, getUsageByMonth,
-    getUsageByModel, getUsageByProvider, clearUsage, getUsage,
+    getUsageByModel, getUsageByProvider, clearUsage, getUsage, syncUsage,
 } from '@/lib/ai/tokenTracker';
 import { cn } from '@/lib/utils/cn';
 
@@ -50,7 +50,8 @@ export default function AnalyticsPage() {
     const [chartView, setChartView] = useState('daily'); // 'daily' | 'weekly' | 'monthly'
     const [mounted, setMounted] = useState(false);
 
-    useEffect(() => { setMounted(true); }, []);
+    // Pull persisted usage from the backend before rendering
+    useEffect(() => { syncUsage().finally(() => setMounted(true)); }, []);
 
     // Memoized data
     const summary = useMemo(() => mounted ? getUsageSummary(timeRange) : null, [timeRange, mounted]);
@@ -70,9 +71,9 @@ export default function AnalyticsPage() {
         return getUsage(timeRange).slice(-50).reverse();
     }, [timeRange, mounted]);
 
-    const handleClearData = () => {
+    const handleClearData = async () => {
         if (!confirm('Clear all AI usage data? This cannot be undone.')) return;
-        clearUsage();
+        await clearUsage();
         // Force re-render
         setMounted(false);
         setTimeout(() => setMounted(true), 0);

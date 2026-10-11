@@ -2,7 +2,7 @@
  * AI Provider Abstraction Layer
  * Direct client-side calls to OpenAI, Anthropic, Gemini, and any
  * OpenAI-compatible endpoint (Ollama, LM Studio, llama.cpp, vLLM, ...).
- * Keys never leave the browser — stored in localStorage only.
+ * Keys are persisted in the app's own backend (see SettingsContext).
  */
 
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';

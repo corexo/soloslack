@@ -1,9 +1,11 @@
 /**
  * Token Usage Tracker
- * Stores AI usage records in localStorage for analytics.
+ * Persists AI usage records in the backend (MongoDB). localStorage is a
+ * synchronous cache so the analytics helpers below can stay sync.
  */
 
 const STORAGE_KEY = 'notban_ai_usage';
+const USAGE_URL = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/ai/usage`;
 const MAX_RECORDS = 5000; // prevent unbounded growth
 
 function getRecords() {
@@ -28,16 +30,45 @@ function saveRecords(records) {
  * @param {{ provider: string, model: string, inputTokens: number, outputTokens: number, totalTokens: number }} record
  */
 export function logUsage({ provider, model, inputTokens, outputTokens, totalTokens }) {
-    const records = getRecords();
-    records.push({
+    const record = {
         timestamp: Date.now(),
         provider,
         model: model || 'unknown',
         inputTokens: inputTokens || 0,
         outputTokens: outputTokens || 0,
         totalTokens: totalTokens || 0,
-    });
-    saveRecords(records);
+    };
+    saveRecords([...getRecords(), record]);
+    fetch(USAGE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(record),
+    }).catch(err => console.error('Failed to persist AI usage', err));
+}
+
+/**
+ * Refresh the local cache from the backend. On first run, uploads
+ * records that only exist locally (pre-persistence data).
+ */
+export async function syncUsage() {
+    try {
+        const res = await fetch(USAGE_URL);
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+
+        const local = getRecords();
+        if (data.data.length === 0 && local.length > 0) {
+            await fetch(USAGE_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(local),
+            });
+            return;
+        }
+        saveRecords(data.data);
+    } catch (err) {
+        console.error('Failed to sync AI usage, using local cache', err);
+    }
 }
 
 /**
@@ -193,6 +224,8 @@ export function getUsageByProvider(range = 'all') {
 /**
  * Clear all usage data.
  */
-export function clearUsage() {
+export async function clearUsage() {
     localStorage.removeItem(STORAGE_KEY);
+    await fetch(USAGE_URL, { method: 'DELETE' })
+        .catch(err => console.error('Failed to clear AI usage', err));
 }

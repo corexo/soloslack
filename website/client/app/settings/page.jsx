@@ -137,7 +137,7 @@ export default function SettingsPage() {
                         <span className="text-[10px] font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full uppercase border border-purple-500/20">BYOK</span>
                     </div>
                     <p className="text-xs text-text-secondary mb-6 relative z-10">
-                        Bring Your Own Key — your API keys are stored locally and never sent to our servers. AI calls go directly from your browser to the provider.
+                        Bring Your Own Key — settings are stored in your own SoloSlack database (MongoDB), so they survive browser resets. Cloud AI calls go directly from your browser to the provider.
                     </p>
 
                     <div className="space-y-4 relative z-10">
@@ -188,7 +188,7 @@ export default function SettingsPage() {
                             <div className="space-y-1">
                                 <p className="text-xs font-semibold text-purple-400/80">Privacy First</p>
                                 <p className="text-[11px] text-text-secondary leading-relaxed">
-                                    Keys are stored in your browser's localStorage only. No AI prompts or responses are logged. Rate limited to 10 requests/minute to prevent accidental quota burn.
+                                    Keys are saved in your self-hosted database, not with any third party. No AI prompts or responses are logged. Rate limited to 10 requests/minute to prevent accidental quota burn.
                                     For fully local AI, use <span className="text-sky-400 font-semibold">Custom / Local</span> with any OpenAI-compatible server (Ollama, LM Studio, llama.cpp, vLLM).
                                 </p>
                             </div>

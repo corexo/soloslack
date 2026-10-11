@@ -14,13 +14,10 @@ const RATE_WINDOW_MS = 60_000;
 const AI_PROXY_URL = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/ai/proxy`;
 
 export function AIProvider({ children }) {
-    const { apiKeys, updateApiKeys, aiConfig, updateAIConfig } = useSettings();
-
-    // Which provider is currently active
-    const [activeProvider, setActiveProvider] = useState(() => {
-        if (typeof window === 'undefined') return null;
-        return localStorage.getItem('notban_ai_provider') || null;
-    });
+    const {
+        apiKeys, updateApiKeys, aiConfig, updateAIConfig, aiLoaded,
+        activeProvider, updateActiveProvider: setActiveProvider,
+    } = useSettings();
 
     // Validation state per provider
     const [keyStatus, setKeyStatus] = useState({ openai: null, anthropic: null, gemini: null, custom: null });
@@ -28,15 +25,6 @@ export function AIProvider({ children }) {
 
     // Rate limiting
     const requestLog = useRef([]);
-
-    // Persist active provider
-    useEffect(() => {
-        if (activeProvider) {
-            localStorage.setItem('notban_ai_provider', activeProvider);
-        } else {
-            localStorage.removeItem('notban_ai_provider');
-        }
-    }, [activeProvider]);
 
     // Custom (local) endpoints need URL + model; the key is optional there
     const isProviderReady = useCallback((provider) => {
@@ -61,11 +49,11 @@ export function AIProvider({ children }) {
 
     // Auto-select provider if only one is configured
     useEffect(() => {
-        if (activeProvider) return;
+        if (!aiLoaded || activeProvider) return;
         const providers = ['openai', 'anthropic', 'gemini', 'custom'];
         const available = providers.filter(isProviderReady);
         if (available.length === 1) setActiveProvider(available[0]);
-    }, [isProviderReady, activeProvider]);
+    }, [aiLoaded, isProviderReady, activeProvider, setActiveProvider]);
 
     const isConfigured = Boolean(activeProvider && isProviderReady(activeProvider));
 
