@@ -9,6 +9,10 @@ router.route('/skill')
     .put(agentSkill.updateSkill)
     .delete(agentSkill.resetSkill);
 router.get('/skill.md', agentSkill.getSkillMarkdown);
+router.route('/prompt')
+    .get(agentSkill.getPrompt)
+    .put(agentSkill.updatePrompt)
+    .delete(agentSkill.resetPrompt);
 router.get('/network', agentsController.getNetwork);
 router.get('/activity', agentsController.getActivity);
 router.get('/activity/stream', agentsController.streamActivity);

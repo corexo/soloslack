@@ -3,7 +3,9 @@ const path = require('path');
 const AppDocument = require('../models/AppDocument');
 
 const KEY = 'agent-skill';
+const PROMPT_KEY = 'agent-prompt';
 const DEFAULT_SKILL = fs.readFileSync(path.join(__dirname, '../assets/agent-skill.md'), 'utf8');
+const DEFAULT_PROMPT = fs.readFileSync(path.join(__dirname, '../assets/agent-prompt.md'), 'utf8');
 
 // URLs as the caller reaches them (agents and browser share the host machine)
 const urlsFor = (req) => {
@@ -17,9 +19,18 @@ const render = (template, req) => {
     return template.replaceAll('{{API_URL}}', api).replaceAll('{{WEB_URL}}', web);
 };
 
-const getTemplate = async () => {
-    const doc = await AppDocument.findOne({ key: KEY }).lean();
-    return { template: doc?.content || DEFAULT_SKILL, isDefault: !doc, updatedAt: doc?.updatedAt || null };
+const getTemplate = async (key = KEY, fallback = DEFAULT_SKILL) => {
+    const doc = await AppDocument.findOne({ key }).lean();
+    return { template: doc?.content || fallback, isDefault: !doc, updatedAt: doc?.updatedAt || null };
+};
+
+const saveTemplate = async (key, content) => {
+    if (typeof content !== 'string' || !content.trim()) {
+        const error = new Error('Content must not be empty');
+        error.statusCode = 400;
+        throw error;
+    }
+    await AppDocument.findOneAndUpdate({ key }, { content }, { upsert: true, runValidators: true });
 };
 
 // @desc    Agent skill for editing in the UI (template with {{API_URL}}/{{WEB_URL}} + rendered preview)
@@ -50,13 +61,7 @@ exports.getSkillMarkdown = async (req, res, next) => {
 // @route   PUT /api/agents/skill  { content }
 exports.updateSkill = async (req, res, next) => {
     try {
-        const content = req.body?.content;
-        if (typeof content !== 'string' || !content.trim()) {
-            const error = new Error('Skill content must not be empty');
-            error.statusCode = 400;
-            throw error;
-        }
-        await AppDocument.findOneAndUpdate({ key: KEY }, { content }, { upsert: true, runValidators: true });
+        await saveTemplate(KEY, req.body?.content);
         return exports.getSkill(req, res, next);
     } catch (error) {
         next(error);
@@ -69,6 +74,44 @@ exports.resetSkill = async (req, res, next) => {
     try {
         await AppDocument.deleteOne({ key: KEY });
         return exports.getSkill(req, res, next);
+    } catch (error) {
+        next(error);
+    }
+};
+
+// ── Agent prompt (handed to an agent to get it started) ─────────
+
+// @desc    Prompt template. Placeholders: {{AGENT_NAME}} {{TOKEN}} {{API_URL}} {{WEB_URL}} {{SKILL_URL}}.
+//          AGENT_NAME/TOKEN are filled in by the UI (the token only exists client-side).
+// @route   GET /api/agents/prompt
+exports.getPrompt = async (req, res, next) => {
+    try {
+        const { template, isDefault, updatedAt } = await getTemplate(PROMPT_KEY, DEFAULT_PROMPT);
+        const { api, web } = urlsFor(req);
+        res.status(200).json({
+            success: true,
+            data: { template, isDefault, updatedAt, urls: { api, web, skill: `${api}/agents/skill.md` } },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @route   PUT /api/agents/prompt  { content }
+exports.updatePrompt = async (req, res, next) => {
+    try {
+        await saveTemplate(PROMPT_KEY, req.body?.content);
+        return exports.getPrompt(req, res, next);
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @route   DELETE /api/agents/prompt
+exports.resetPrompt = async (req, res, next) => {
+    try {
+        await AppDocument.deleteOne({ key: PROMPT_KEY });
+        return exports.getPrompt(req, res, next);
     } catch (error) {
         next(error);
     }

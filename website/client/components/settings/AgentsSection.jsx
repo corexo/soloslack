@@ -1,28 +1,12 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Bot, Plus, Trash2, RefreshCw, Copy, Check, Terminal, AlertCircle } from 'lucide-react';
+import { Bot, Plus, Trash2, RefreshCw, Terminal, AlertCircle } from 'lucide-react';
+import { agentSkillApi, renderAgentPrompt } from '@/lib/api/agentSkillApi';
+import AgentPromptEditor, { CopyTextButton } from './AgentPromptEditor';
 import { agentsApi } from '@/lib/api/agentsApi';
 import { timeAgo } from '@/lib/utils/formatDate';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-
-function CopyButton({ text }) {
-    const [copied, setCopied] = useState(false);
-    return (
-        <button
-            type="button"
-            onClick={() => {
-                navigator.clipboard.writeText(text);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-            }}
-            className="p-1.5 rounded-md text-text-muted hover:text-sky-400 hover:bg-sky-500/10 transition-colors shrink-0"
-            title="Copy"
-        >
-            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-        </button>
-    );
-}
 
 // Lives inside the settings <form>: every button is type="button" and Enter is swallowed
 export default function AgentsSection() {
@@ -32,9 +16,11 @@ export default function AgentsSection() {
     const [error, setError] = useState(null);
     const [revealed, setRevealed] = useState(null); // { name, token } — shown once
     const [busy, setBusy] = useState(false);
+    const [prompt, setPrompt] = useState(null); // { template, isDefault, urls }
 
     useEffect(() => {
         agentsApi.getAll().then(res => setAgents(res.data)).catch(err => setError(err.message));
+        agentSkillApi.getPrompt().then(res => setPrompt(res.data)).catch(() => {});
     }, []);
 
     const handleCreate = async () => {
@@ -79,6 +65,9 @@ export default function AgentsSection() {
     };
 
     const loginCommand = revealed ? `soloslack login ${API_URL} ${revealed.token}` : '';
+    const revealedPrompt = revealed && prompt
+        ? renderAgentPrompt(prompt.template, { agentName: revealed.name, token: revealed.token, urls: prompt.urls })
+        : '';
     const inputClass = 'bg-surface-overlay border border-border-subtle focus:border-sky-500/40 focus:ring-2 focus:ring-sky-500/10 rounded-lg px-3 py-2 text-xs text-text-primary outline-none transition-all placeholder:text-text-muted/40';
 
     return (
@@ -143,18 +132,23 @@ export default function AgentsSection() {
                         </p>
                         <div className="flex items-center gap-2 bg-surface-overlay rounded-lg px-3 py-2">
                             <code className="text-[11px] font-mono text-text-primary break-all flex-1">{revealed.token}</code>
-                            <CopyButton text={revealed.token} />
+                            <CopyTextButton text={revealed.token} className="p-1.5" title="Copy token" />
                         </div>
                         <p className="text-[11px] text-text-secondary flex items-center gap-1.5">
                             <Terminal className="w-3 h-3" /> In the agent&apos;s shell:
                         </p>
                         <div className="flex items-center gap-2 bg-surface-overlay rounded-lg px-3 py-2">
                             <code className="text-[11px] font-mono text-text-primary break-all flex-1">{loginCommand}</code>
-                            <CopyButton text={loginCommand} />
+                            <CopyTextButton text={loginCommand} className="p-1.5" title="Copy login command" />
                         </div>
-                        <p className="text-[11px] text-text-secondary">
-                            Then give the agent the <span className="text-sky-400 font-semibold">Agent Skill</span> below so it knows how to work with SoloSlack.
-                        </p>
+                        {revealedPrompt && (
+                            <div className="flex items-center justify-between gap-2 pt-1">
+                                <p className="text-[11px] text-text-secondary">
+                                    Or hand over everything at once — start prompt incl. token and the link to the <span className="text-sky-400 font-semibold">Agent Skill</span>:
+                                </p>
+                                <CopyTextButton text={revealedPrompt} label="Copy prompt" className="text-emerald-400 bg-emerald-500/10 hover:text-emerald-300 hover:bg-emerald-500/20" />
+                            </div>
+                        )}
                         <button type="button" onClick={() => setRevealed(null)} className="text-[11px] text-text-muted hover:text-text-primary">
                             Done
                         </button>
@@ -176,6 +170,13 @@ export default function AgentsSection() {
                                         token {agent.tokenPrefix}… · {agent.lastSeenAt ? `last seen ${timeAgo(agent.lastSeenAt)}` : 'never connected'}
                                     </p>
                                 </div>
+                                {prompt && (
+                                    <CopyTextButton
+                                        text={renderAgentPrompt(prompt.template, { agentName: agent.name, urls: prompt.urls })}
+                                        className="p-1.5"
+                                        title={`Copy start prompt for ${agent.name}`}
+                                    />
+                                )}
                                 <button
                                     type="button"
                                     onClick={() => handleRotate(agent)}
@@ -196,6 +197,13 @@ export default function AgentsSection() {
                         ))}
                     </div>
                 )}
+
+                <AgentPromptEditor
+                    prompt={prompt}
+                    agents={agents}
+                    onSave={async (content) => setPrompt((await agentSkillApi.savePrompt(content)).data)}
+                    onReset={async () => setPrompt((await agentSkillApi.resetPrompt()).data)}
+                />
             </div>
         </section>
     );
