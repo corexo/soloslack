@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { MoreHorizontal, Edit2, Trash2, Plus, ChevronLeft, ChevronRight, Gauge } from 'lucide-react';
+import { MoreHorizontal, Edit2, Trash2, Plus, ChevronLeft, ChevronRight, Gauge, GripVertical } from 'lucide-react';
 import ConfirmModal from '../ui/ConfirmModal';
 import { useDroppable } from '@dnd-kit/core';
-import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import KanbanCard from './KanbanCard';
 import { cn } from '@/lib/utils/cn';
 
@@ -25,6 +26,12 @@ export default function KanbanColumn({ column, cards, onCardClick, onAddCard, on
     const wipPercent = wipLimit !== null ? Math.min((cards.length / wipLimit) * 100, 100) : 0;
 
     const { setNodeRef } = useDroppable({ id: column._id });
+    // The column itself is sortable via its header grip (prefixed id: the plain id is the card drop zone)
+    const {
+        setNodeRef: setSortableRef, setActivatorNodeRef, attributes: sortAttributes, listeners: sortListeners,
+        transform, transition, isDragging: isColumnDragging,
+    } = useSortable({ id: `column:${column._id}`, data: { type: 'column', columnId: column._id } });
+    const sortableStyle = { transform: CSS.Translate.toString(transform), transition };
 
     // Close menu on outside click
     useEffect(() => {
@@ -91,7 +98,11 @@ export default function KanbanColumn({ column, cards, onCardClick, onAddCard, on
     // ── Collapsed view ────────────────────────────────────────────────────────
     if (isCollapsed) {
         return (
-            <div className="w-10 shrink-0 flex flex-col items-center bg-surface-raised/40 rounded-xl border border-border-subtle overflow-hidden max-h-full py-3 gap-3">
+            <div
+                ref={setSortableRef}
+                style={sortableStyle}
+                className={cn('w-10 shrink-0 flex flex-col items-center bg-surface-raised/40 rounded-xl border border-border-subtle overflow-hidden max-h-full py-3 gap-3', isColumnDragging && 'opacity-50 z-10')}
+            >
                 <button
                     onClick={() => setIsCollapsed(false)}
                     className="text-text-muted hover:text-text-primary transition-colors"
@@ -99,7 +110,13 @@ export default function KanbanColumn({ column, cards, onCardClick, onAddCard, on
                 >
                     <ChevronRight className="w-4 h-4" />
                 </button>
-                <div className="flex-1 flex items-center justify-center">
+                <div
+                    ref={setActivatorNodeRef}
+                    {...sortAttributes}
+                    {...sortListeners}
+                    className="flex-1 flex items-center justify-center cursor-grab active:cursor-grabbing"
+                    title="Drag to move column"
+                >
                     <span
                         className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider select-none"
                         style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
@@ -123,8 +140,9 @@ export default function KanbanColumn({ column, cards, onCardClick, onAddCard, on
 
     // ── Expanded view ─────────────────────────────────────────────────────────
     return (
-        <div className={cn(
+        <div ref={setSortableRef} style={sortableStyle} className={cn(
             'w-72 flex flex-col shrink-0 bg-surface-raised/40 rounded-xl border overflow-hidden max-h-full transition-colors',
+            isColumnDragging && 'opacity-50 z-10 shadow-2xl',
             isOverLimit ? 'border-red-500/60' : isAtLimit ? 'border-amber-500/60' : isNearLimit ? 'border-amber-400/30' : 'border-border-subtle'
         )}>
             <header className={cn(
@@ -136,6 +154,15 @@ export default function KanbanColumn({ column, cards, onCardClick, onAddCard, on
                         : 'border-border-subtle bg-surface-raised/60'
             )}>
                 <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <button
+                        ref={setActivatorNodeRef}
+                        {...sortAttributes}
+                        {...sortListeners}
+                        className="-ml-1 p-0.5 rounded text-text-muted/50 hover:text-text-primary hover:bg-surface-hover cursor-grab active:cursor-grabbing shrink-0 touch-none"
+                        title="Drag to move column"
+                    >
+                        <GripVertical className="w-3.5 h-3.5" />
+                    </button>
                     {isEditing ? (
                         <input
                             ref={inputRef}

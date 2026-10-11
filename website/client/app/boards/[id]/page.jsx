@@ -26,7 +26,7 @@ export default function BoardViewPage() {
     const {
         activeBoard, fetchBoardFull, loading,
         moveCard, createCard, updateCard, deleteCard,
-        createColumn, updateColumn, deleteColumn,
+        createColumn, updateColumn, deleteColumn, reorderColumns,
         importBoard, updateBoard,
         bulkDeleteCards, bulkMoveCards, bulkArchiveCards,
     } = useBoards();
@@ -395,6 +395,8 @@ export default function BoardViewPage() {
                         onCardClick={selectMode ? null : handleCardClick}
                         onUpdateColumn={updateColumn}
                         onDeleteColumn={deleteColumn}
+                        onReorderColumns={(columnIds) => reorderColumns(activeBoard.board._id, columnIds)
+                            .catch(err => showToast({ label: 'Could not move column: ' + err.message, type: 'error' }))}
                         selectMode={selectMode}
                         selectedCardIds={selectedCardIds}
                         onToggleCardSelection={toggleCardSelection}

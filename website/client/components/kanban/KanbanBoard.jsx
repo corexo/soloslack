@@ -3,13 +3,14 @@ import {
     DndContext,
     DragOverlay,
     closestCorners,
+    closestCenter,
     KeyboardSensor,
     PointerSensor,
     useSensor,
     useSensors,
     defaultDropAnimationSideEffects,
 } from '@dnd-kit/core';
-import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import { arrayMove, sortableKeyboardCoordinates, SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import KanbanColumn from './KanbanColumn';
 import KanbanCard from './KanbanCard';
 import { Plus } from 'lucide-react';
@@ -24,6 +25,7 @@ export default function KanbanBoard({
     onCardClick,
     onUpdateColumn,
     onDeleteColumn,
+    onReorderColumns,
     selectMode = false,
     selectedCardIds = new Set(),
     onToggleCardSelection,
@@ -31,6 +33,24 @@ export default function KanbanBoard({
     const [activeId, setActiveId] = useState(null);
     const [localCardsByColumn, setLocalCardsByColumn] = useState(cardsByColumn);
     const [multiDragTarget, setMultiDragTarget] = useState(null); // column id during multi-drag
+    const [localColumns, setLocalColumns] = useState(columns);
+    const columnDragRef = useRef(false);
+
+    // Same sync rule as cards: never reset the order while a column is being dragged
+    useEffect(() => {
+        if (columnDragRef.current) return;
+        setLocalColumns(columns);
+    }, [columns]);
+
+    const isColumnDrag = (active) => active?.data.current?.type === 'column';
+
+    // Columns only collide with other columns; cards ignore the column sortables
+    // and keep the corner-based detection against card slots and column drop zones
+    const collisionDetection = (args) => {
+        const columnDrag = isColumnDrag(args.active);
+        const droppableContainers = args.droppableContainers.filter(c => (c.data.current?.type === 'column') === columnDrag);
+        return columnDrag ? closestCenter({ ...args, droppableContainers }) : closestCorners({ ...args, droppableContainers });
+    };
 
     // Is the current drag a multi-card drag?
     const isMultiDrag = selectMode && activeId && selectedCardIds.size > 1 && selectedCardIds.has(activeId);
@@ -59,6 +79,10 @@ export default function KanbanBoard({
     };
 
     const handleDragStart = ({ active }) => {
+        if (isColumnDrag(active)) {
+            columnDragRef.current = true;
+            return;
+        }
         setActiveId(active.id);
         setMultiDragTarget(null);
     };
@@ -80,7 +104,7 @@ export default function KanbanBoard({
     };
 
     const handleDragOver = ({ active, over }) => {
-        if (!over) return;
+        if (!over || isColumnDrag(active)) return;
 
         // ── Multi-drag: only track which column we're over ──────────────
         if (isMultiDrag) {
@@ -158,6 +182,17 @@ export default function KanbanBoard({
     };
 
     const handleDragEnd = ({ active, over }) => {
+        if (isColumnDrag(active)) {
+            columnDragRef.current = false;
+            const targetId = over?.data.current?.columnId;
+            const from = localColumns.findIndex(c => c._id === active.data.current.columnId);
+            const to = localColumns.findIndex(c => c._id === targetId);
+            if (from < 0 || to < 0 || from === to) return;
+            const reordered = arrayMove(localColumns, from, to);
+            setLocalColumns(reordered);
+            onReorderColumns?.(reordered.map(c => c._id));
+            return;
+        }
         setActiveId(null);
 
         if (!over) {
@@ -197,6 +232,8 @@ export default function KanbanBoard({
     };
 
     const handleDragCancel = () => {
+        columnDragRef.current = false;
+        setLocalColumns(columns);
         setActiveId(null);
         setMultiDragTarget(null);
         setLocalCardsByColumn(cardsByColumn);
@@ -209,14 +246,15 @@ export default function KanbanBoard({
     return (
         <DndContext
             sensors={sensors}
-            collisionDetection={closestCorners}
+            collisionDetection={collisionDetection}
             onDragStart={handleDragStart}
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
             onDragCancel={handleDragCancel}
         >
             <div className="flex gap-5 p-6 h-full overflow-x-auto items-start bg-surface-base">
-                {columns.map(col => (
+                <SortableContext items={localColumns.map(c => `column:${c._id}`)} strategy={horizontalListSortingStrategy}>
+                {localColumns.map(col => (
                     <KanbanColumn
                         key={col._id}
                         column={col}
@@ -231,6 +269,7 @@ export default function KanbanBoard({
                         isMultiDragging={isMultiDrag}
                     />
                 ))}
+                </SortableContext>
 
                 <button
                     onClick={onAddColumn}

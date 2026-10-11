@@ -124,6 +124,22 @@ export function BoardsProvider({ children }) {
         return res.data;
     }, []);
 
+    // Optimistic: reorder locally, persist, reload the board if saving fails
+    const reorderColumns = useCallback(async (boardId, columnIds) => {
+        setActiveBoard(prev => {
+            if (!prev || prev.board._id !== boardId) return prev;
+            const byId = new Map(prev.columns.map(c => [c._id, c]));
+            return { ...prev, columns: columnIds.map((id, order) => ({ ...byId.get(id), order })) };
+        });
+        try {
+            await columnsApi.reorder(boardId, columnIds);
+        } catch (err) {
+            console.error('Failed to reorder columns:', err);
+            fetchBoardFull(boardId, { silent: true });
+            throw err;
+        }
+    }, [fetchBoardFull]);
+
     const deleteColumn = useCallback(async (id) => {
         await columnsApi.delete(id);
         setActiveBoard(prev => {
@@ -486,7 +502,7 @@ export function BoardsProvider({ children }) {
             setIsCreateBoardModalOpen,
             fetchBoards, fetchBoardFull,
             createBoard, updateBoard, deleteBoard, importBoard, reorderBoards,
-            createColumn, updateColumn, deleteColumn,
+            createColumn, updateColumn, deleteColumn, reorderColumns,
             createCard, updateCard, deleteCard, moveCard,
             bulkDeleteCards, bulkMoveCards, bulkArchiveCards,
         }}>
@@ -503,7 +519,7 @@ export const useBoards = () => {
             setIsCreateBoardModalOpen: () => {},
             fetchBoards: () => {}, fetchBoardFull: () => {},
             createBoard: () => {}, updateBoard: () => {}, deleteBoard: () => {}, importBoard: () => {}, reorderBoards: () => {},
-            createColumn: () => {}, updateColumn: () => {}, deleteColumn: () => {},
+            createColumn: () => {}, updateColumn: () => {}, deleteColumn: () => {}, reorderColumns: async () => {},
             createCard: () => {}, updateCard: () => {}, deleteCard: () => {}, moveCard: () => {},
             bulkDeleteCards: () => {}, bulkMoveCards: () => {}, bulkArchiveCards: () => {},
         };

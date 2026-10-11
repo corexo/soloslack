@@ -78,6 +78,33 @@ exports.updateColumn = async (req, res, next) => {
     }
 };
 
+// @desc    Reorder all columns of a board
+// @route   PATCH /api/columns/reorder  { boardId, columnIds: [...] in the new order }
+exports.reorderColumns = async (req, res, next) => {
+    try {
+        const { boardId, columnIds } = req.body || {};
+        if (!boardId || !Array.isArray(columnIds)) {
+            const error = new Error('boardId and columnIds are required');
+            error.statusCode = 400;
+            throw error;
+        }
+        const existing = await Column.find({ boardId }).select('_id').lean();
+        const ids = new Set(existing.map(c => String(c._id)));
+        if (columnIds.length !== ids.size || !columnIds.every(id => ids.has(String(id)))) {
+            const error = new Error('columnIds must contain every column of the board exactly once');
+            error.statusCode = 400;
+            throw error;
+        }
+        await Column.bulkWrite(columnIds.map((id, order) => ({
+            updateOne: { filter: { _id: id }, update: { $set: { order } } },
+        })));
+        const columns = await Column.find({ boardId }).sort({ order: 1 }).lean();
+        res.status(200).json({ success: true, data: columns });
+    } catch (error) {
+        next(error);
+    }
+};
+
 // @desc    Delete column
 // @route   DELETE /api/columns/:id
 exports.deleteColumn = async (req, res, next) => {

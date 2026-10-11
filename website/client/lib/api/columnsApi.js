@@ -20,4 +20,5 @@ export const columnsApi = {
     create: (data) => request('/columns', { method: 'POST', body: JSON.stringify(data) }),
     update: (id, data) => request(`/columns/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     delete: (id) => request(`/columns/${id}`, { method: 'DELETE' }),
+    reorder: (boardId, columnIds) => request('/columns/reorder', { method: 'PATCH', body: JSON.stringify({ boardId, columnIds }) }),
 };
