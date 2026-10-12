@@ -55,6 +55,8 @@ const PRIORITY_DOT = {
     low: 'bg-green-400',
 };
 
+const NOTE_MODE_KEY = 'notban_note_mode';
+
 export default function NoteEditor() {
     const { notes, activeNote, setActiveNote, updateNote, deleteNote, refreshActiveNote } = useNotes();
     const { focusMode, setFocusMode } = useSettings();
@@ -66,6 +68,13 @@ export default function NoteEditor() {
     const [tags, setTags] = useState([]);
     const [tagInput, setTagInput] = useState('');
     const [mode, setMode] = useState('edit'); // 'edit' | 'preview'
+    // Edit/Preview choice applies to every note and survives reloads
+    const preferredModeRef = useRef(null);
+    const switchMode = (next) => {
+        setMode(next);
+        preferredModeRef.current = next;
+        localStorage.setItem(NOTE_MODE_KEY, next);
+    };
     const [saveStatus, setSaveStatus] = useState('idle'); // 'idle' | 'saving' | 'saved' | 'error'
     const [isCardPickerOpen, setIsCardPickerOpen] = useState(false);
     const [showExportMenu, setShowExportMenu] = useState(false);
@@ -148,7 +157,9 @@ export default function NoteEditor() {
         setBody(activeNote.body || '');
         setTags(activeNote.tags || []);
         setTagInput('');
-        setMode('edit');
+        // Empty notes open in the editor so you can start typing right away
+        preferredModeRef.current ??= localStorage.getItem(NOTE_MODE_KEY) || 'edit';
+        setMode(activeNote.body?.trim() ? preferredModeRef.current : 'edit');
         setSaveStatus('idle');
         setFileContent(null);
         setFetchingContent(false);
@@ -522,7 +533,7 @@ export default function NoteEditor() {
                     {/* Edit / Preview toggle */}
                     <div className="flex bg-surface-overlay rounded-md p-0.5 border border-border-default mr-2">
                         <button
-                            onClick={() => setMode('edit')}
+                            onClick={() => switchMode('edit')}
                             className={cn(
                                 'px-2.5 py-1 text-xs rounded flex items-center gap-1 transition-colors',
                                 mode === 'edit'
@@ -533,7 +544,7 @@ export default function NoteEditor() {
                             <Edit3 className="w-3 h-3" /> Edit
                         </button>
                         <button
-                            onClick={() => setMode('preview')}
+                            onClick={() => switchMode('preview')}
                             className={cn(
                                 'px-2.5 py-1 text-xs rounded flex items-center gap-1 transition-colors',
                                 mode === 'preview'
