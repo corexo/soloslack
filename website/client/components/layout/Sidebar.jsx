@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
-import { Sun, Moon, Trash2, Search, Archive, GripVertical, FolderOpen, Plus, X, Pencil, MoreHorizontal, BarChart3, Network, Sparkles } from 'lucide-react';
+import { Sun, Moon, Trash2, Search, Archive, GripVertical, FolderOpen, Plus, X, Pencil, MoreHorizontal, BarChart3, Network, Sparkles, CalendarCheck } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -358,6 +358,7 @@ export default function Sidebar() {
                     {workspacesExpanded && (
                         <div className="space-y-0.5 animate-fade-in">
                             {/* "All" item to clear workspace filter */}
+                            <div className="relative">
                             <button
                                 onClick={() => setActiveWorkspaceId(null)}
                                 className={cn(
@@ -368,8 +369,16 @@ export default function Sidebar() {
                                 )}
                             >
                                 <FolderOpen className="w-3.5 h-3.5 shrink-0 text-text-muted" />
-                                <span className="truncate">All Items</span>
+                                <span className="truncate flex-1 text-left">All Items</span>
                             </button>
+                            <Link
+                                href="/workspaces/all"
+                                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded text-text-muted hover:text-purple-400"
+                                title="Tagesplanung mit AI (alle Boards)"
+                            >
+                                <CalendarCheck className="w-3.5 h-3.5" />
+                            </Link>
+                            </div>
 
                             {/* Workspace items */}
                             {workspaces.map((ws) => {
@@ -417,7 +426,15 @@ export default function Sidebar() {
 
                                         {/* Context menu trigger */}
                                         {editingWsId !== ws._id && (
-                                            <div className="absolute right-1 top-1/2 -translate-y-1/2" ref={wsMenuId === ws._id ? wsMenuRef : undefined}>
+                                            <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center" ref={wsMenuId === ws._id ? wsMenuRef : undefined}>
+                                                <Link
+                                                    href={`/workspaces/${ws._id}`}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="p-1 rounded text-text-muted hover:text-purple-400 opacity-0 group-hover:opacity-100 transition-all"
+                                                    title="Tagesplanung mit AI"
+                                                >
+                                                    <CalendarCheck className="w-3.5 h-3.5" />
+                                                </Link>
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); setWsMenuId(prev => prev === ws._id ? null : ws._id); }}
                                                     className="p-1 rounded text-text-muted hover:text-text-primary opacity-0 group-hover:opacity-100 transition-all"

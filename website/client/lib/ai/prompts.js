@@ -292,3 +292,79 @@ Return ONLY JSON, no prose:
         },
     ];
 }
+
+// ── Daily planner chat ───────────────────────────────────────────
+
+const PLANNER_FLAG_LABELS = {
+    overdue: 'OVERDUE', dueToday: 'due today', inProgress: 'in progress', carriedOver: 'worked on yesterday, not done',
+    bug: 'bug', doneYesterday: 'finished yesterday', doneToday: 'finished today',
+};
+
+/**
+ * System prompt for the workspace planning chat. Tickets are referenced as C1, C2, …
+ * (`refs` maps them back to card ids) because small models mangle long ids.
+ */
+export function plannerSystemPrompt(context, refs) {
+    const today = new Date(context.today);
+    const dateText = today.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+    const boards = context.boards
+        .map(b => `- ${b.name}: ${b.columns.map(c => c.done ? `${c.name} (done)` : c.name).join(' | ')}`)
+        .join('\n') || '(no boards)';
+    const tickets = refs.map(({ ref, ticket: t }) => {
+        const due = t.dueDate ? new Date(t.dueDate).toLocaleDateString('de-DE') : '-';
+        const flags = t.flags.map(f => PLANNER_FLAG_LABELS[f] || f).join(', ') || '-';
+        const extra = [
+            t.assignee && `agent: ${t.assignee}`,
+            t.checklist && `checklist ${t.checklist}`,
+            t.labels.length && `labels: ${t.labels.join(', ')}`,
+        ].filter(Boolean).join('; ');
+        const recent = t.recent.length ? `\n    recent: ${t.recent.join(' | ')}` : '';
+        return `${ref} | ${t.board} › ${t.column} | ${t.priority} | due ${due} | ${flags}${extra ? ` | ${extra}` : ''} | ${t.title}${recent}`;
+    }).join('\n') || '(no open tickets)';
+
+    return `You are the user's daily planning assistant inside SoloSlack, a kanban app.
+Today is ${dateText}. Workspace: ${context.workspace.name}.
+Answer in the user's language, concisely, with markdown (short lists, ticket titles in **bold**).
+Refer to tickets by their title in your text. The refs (C1, C2, …) are internal: use them ONLY inside the actions block.
+Only talk about tickets listed below; never invent tickets or refs.
+
+When asked to plan the day:
+1. Recap yesterday: what was finished, what was worked on but is not done.
+2. Point out overdue tickets and open bugs.
+3. Propose a realistic plan for today (about 3-7 tickets, in order, high priority / overdue / carried over first) and say why.
+
+When the user reports a bug or asks for a new ticket, draft it (bug tickets: label "bug", description with "Steps to reproduce", "Expected", "Actual").
+
+If you propose changes to the board, end your answer with exactly ONE fenced block:
+\`\`\`actions
+[
+  {"type": "plan_today", "ref": "C3"},
+  {"type": "move", "ref": "C1", "column": "In Progress"},
+  {"type": "update", "ref": "C2", "priority": "high"},
+  {"type": "create", "board": "<board name>", "column": "<column>", "title": "...", "description": "...", "priority": "high", "labels": ["bug"], "checklist": ["..."], "dueToday": true}
+]
+\`\`\`
+- plan_today = set the ticket's due date to today (skip tickets already due today). update may set "priority" (low|medium|high) and/or "assignee" (agent name or null).
+- Use the exact column and board names listed. Omit the block if nothing should change.
+- The user approves each action before it is applied, so propose freely but sensibly.
+
+Boards and columns:
+${boards}
+
+Tickets (ref | board › column | priority | due | status | details | title):
+${tickets}`;
+}
+
+/** Split an assistant reply into visible text and the proposed actions */
+export function parsePlannerReply(text) {
+    const match = /```actions\s*([\s\S]*?)```/i.exec(text);
+    const content = text.replace(/```actions\s*[\s\S]*?```/i, '').trim();
+    if (!match) return { content, actions: [] };
+    try {
+        const json = /\[[\s\S]*\]/.exec(match[1])?.[0];
+        const actions = JSON.parse(json || '[]');
+        return { content, actions: Array.isArray(actions) ? actions : [] };
+    } catch {
+        return { content: `${content}\n\n_(The suggested actions could not be read.)_`, actions: [] };
+    }
+}
