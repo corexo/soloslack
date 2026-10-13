@@ -23,6 +23,12 @@ A premium, glassmorphic productivity workspace that combines flexible **Markdown
 -   **Bulk operations** — bulk delete, move, archive, and restore cards
 -   **Export** — JSON and CSV board exports
 
+### Design Book
+-   **Storybook per workspace** — document the design of each project: chapters in a Storybook-style sidebar, detail view on the right
+-   **Four entry types** — `gallery` (screenshots & mockups with lightbox), `tokens` (color swatches with copy-to-clipboard, live typography samples, spacing bars), `snippet` (HTML/CSS rendered live in a sandboxed iframe), `doc` (Markdown for decisions & patterns)
+-   **Chapters** — create, rename, delete (entries cascade); drag-and-drop entries within and across chapters
+-   **Image uploads** — reuse the existing file upload (R2-backed) or paste image URLs; captions included
+
 ### Workspaces
 -   **Color-coded workspaces** — organize boards and notes into named workspaces (8 color options)
 -   **Workspace filtering** — select a workspace in the sidebar to scope boards and notes
@@ -129,6 +135,7 @@ website/
 │   ├── components/
 │   │   ├── ai/              # AI feature components (AutoPrioritize, SemanticSearch, etc.)
 │   │   ├── kanban/          # Board, Column, Card, Calendar components
+│   │   ├── design/          # DesignBookSidebar, EntryRenderer/Editor (gallery, tokens, snippet, doc)
 │   │   ├── notes/           # NoteEditor, NotesList, MarkdownRenderer, MermaidBlock
 │   │   ├── layout/          # Sidebar
 │   │   ├── providers/       # AppProviders wrapper
@@ -155,6 +162,7 @@ website/
 -   **Cards**: `POST /api/cards`, `PATCH /api/cards/:id`, `DELETE /api/cards/:id`, move, bulk delete/move/archive, upcoming, WIP check
 -   **Comments**: `GET /api/cards/:cardId/comments`, `POST`, `PATCH`, `DELETE`
 -   **Workspaces**: `GET /api/workspaces`, `POST`, `PATCH`, `DELETE`, reorder
+-   **Design Book**: `GET /api/design?workspaceId=`, chapters & entries `POST/PATCH/DELETE`, `POST /api/design/reorder`
 
 ---
 
