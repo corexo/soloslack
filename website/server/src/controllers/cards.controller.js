@@ -3,6 +3,8 @@ const Column = require('../models/Column');
 const Note = require('../models/Note');
 const Comment = require('../models/Comment');
 const { deleteAttachmentsOfCards } = require('../utils/attachments');
+const { columnInfoMap } = require('../utils/columns');
+const Board = require('../models/Board');
 
 // Check if adding a card to a column would exceed its WIP limit
 async function checkWipLimit(columnId, excludeCardId = null) {
@@ -24,6 +26,63 @@ async function checkWipLimit(columnId, excludeCardId = null) {
 }
 
 exports.checkWipLimit = checkWipLimit;
+
+// @desc    Open tickets due today / tomorrow / overdue (done columns excluded)
+// @route   GET /api/cards/agenda?todayStart=<ISO, browser midnight>&workspaceId=<optional>
+exports.getAgenda = async (req, res, next) => {
+    try {
+        const DAY = 24 * 3600 * 1000;
+        const todayStart = new Date(req.query.todayStart || new Date().setHours(0, 0, 0, 0));
+        if (Number.isNaN(todayStart.getTime())) {
+            const error = new Error('Invalid todayStart');
+            error.statusCode = 400;
+            throw error;
+        }
+        const tomorrowStart = new Date(todayStart.getTime() + DAY);
+        const dayAfter = new Date(todayStart.getTime() + 2 * DAY);
+
+        const boardFilter = { isArchived: false };
+        if (req.query.workspaceId) boardFilter.workspaceId = req.query.workspaceId;
+        const boards = await Board.find(boardFilter).select('_id name').lean();
+        const boardIds = boards.map(b => b._id);
+
+        const [columns, cards] = await Promise.all([
+            Column.find({ boardId: { $in: boardIds } }).lean(),
+            Card.find({ boardId: { $in: boardIds }, isArchived: false, dueDate: { $ne: null, $lt: dayAfter } })
+                .sort({ dueDate: 1, priority: 1 }).lean(),
+        ]);
+        const columnInfo = columnInfoMap(columns);
+        const boardName = new Map(boards.map(b => [String(b._id), b.name]));
+        const PRIORITY_RANK = { high: 0, medium: 1, low: 2 };
+
+        const agenda = { overdue: [], today: [], tomorrow: [] };
+        for (const c of cards) {
+            const col = columnInfo.get(String(c.columnId));
+            if (!col || col.done) continue;
+            const item = {
+                _id: c._id,
+                title: c.title,
+                boardId: c.boardId,
+                boardName: boardName.get(String(c.boardId)),
+                column: col.name,
+                priority: c.priority,
+                dueDate: c.dueDate,
+                assignee: c.assignee || null,
+                labels: c.labels || [],
+                checklist: c.checklist?.length ? { done: c.checklist.filter(i => i.completed).length, total: c.checklist.length } : null,
+            };
+            const due = new Date(c.dueDate);
+            if (due < todayStart) agenda.overdue.push(item);
+            else if (due < tomorrowStart) agenda.today.push(item);
+            else agenda.tomorrow.push(item);
+        }
+        Object.values(agenda).forEach(list => list.sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]));
+
+        res.status(200).json({ success: true, data: agenda });
+    } catch (error) {
+        next(error);
+    }
+};
 
 // @desc    Get cards that are overdue or due within the next 7 days
 // @route   GET /api/cards/upcoming

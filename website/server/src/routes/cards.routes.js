@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getCards, getCardById, createCard, updateCard, moveCard, deleteCard, getUpcomingCards, bulkDeleteCards, bulkMoveCards, bulkArchiveCards, bulkUnarchiveCards } = require('../controllers/cards.controller');
+const { getAgenda, getCards, getCardById, createCard, updateCard, moveCard, deleteCard, getUpcomingCards, bulkDeleteCards, bulkMoveCards, bulkArchiveCards, bulkUnarchiveCards } = require('../controllers/cards.controller');
 const { getComments, createComment, updateComment, deleteComment } = require('../controllers/comments.controller');
 const { upload, MAX_FILES } = require('../config/uploads');
 const { getCardAttachments, uploadCardAttachments } = require('../controllers/attachments.controller');
@@ -11,6 +11,7 @@ router.route('/')
 
 // Must be before /:id to avoid being treated as an id
 router.get('/upcoming', getUpcomingCards);
+router.get('/agenda', getAgenda);
 router.post('/bulk-delete', bulkDeleteCards);
 router.post('/bulk-move', bulkMoveCards);
 router.post('/bulk-archive', bulkArchiveCards);

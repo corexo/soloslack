@@ -22,6 +22,10 @@ import {
     AlertCircle,
     AlertTriangle,
     Pin,
+    CalendarCheck,
+    CalendarClock,
+    Bot,
+    Sparkles,
 } from 'lucide-react';
 
 function getGreeting() {
@@ -47,6 +51,7 @@ export default function Dashboard() {
     const { boards, fetchBoards, setIsCreateBoardModalOpen } = useBoards();
     const { workspaces, fetchWorkspaces } = useWorkspaces();
     const [upcomingCards, setUpcomingCards] = useState([]);
+    const [agenda, setAgenda] = useState(null); // { overdue, today, tomorrow }
 
     useEffect(() => {
         fetchNotes({ limit: 6 });
@@ -54,6 +59,12 @@ export default function Dashboard() {
         fetchWorkspaces();
         cardsApi.getUpcoming()
             .then(res => setUpcomingCards(res.data))
+            .catch(() => {});
+        // Midnight in the browser's timezone decides what "today" means
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        cardsApi.getAgenda(todayStart)
+            .then(res => setAgenda({ ...res.data, todayStart, tomorrowStart: new Date(todayStart.getTime() + 24 * 3600 * 1000) }))
             .catch(() => {});
     }, [fetchNotes, fetchBoards, fetchWorkspaces]);
 
@@ -148,6 +159,38 @@ export default function Dashboard() {
                     smallValue={!!lastActiveAgo}
                 />
             </div>
+
+            {/* ── Today & Tomorrow ── */}
+            {agenda && (
+                <section className="animate-fade-in-up stagger-3 space-y-4">
+                    <div className="flex items-center justify-between">
+                        <SectionHeader title="Today & Tomorrow" accentColor="bg-purple-500" />
+                        <Link
+                            href="/workspaces/all"
+                            className="inline-flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300 font-semibold"
+                        >
+                            <Sparkles size={13} /> Plan with AI
+                        </Link>
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <AgendaColumn
+                            title="Today"
+                            date={agenda.todayStart}
+                            icon={<CalendarCheck size={15} className="text-emerald-400" />}
+                            overdue={agenda.overdue}
+                            items={agenda.today}
+                            emptyText="Nothing planned for today."
+                        />
+                        <AgendaColumn
+                            title="Tomorrow"
+                            date={agenda.tomorrowStart}
+                            icon={<CalendarClock size={15} className="text-sky-400" />}
+                            items={agenda.tomorrow}
+                            emptyText="Nothing planned for tomorrow yet."
+                        />
+                    </div>
+                </section>
+            )}
 
             {/* ── Main Content: Boards grid + Activity feed ── */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in-up stagger-3">
@@ -363,6 +406,67 @@ function NoteCard({ note, setActiveNote }) {
 
 const PRIORITY_DOT = { high: '#f87171', medium: '#fbbf24', low: '#4ade80' };
 
+/** Open tickets due on one day (overdue ones listed first in red) */
+function AgendaColumn({ title, date, icon, items, overdue = [], emptyText }) {
+    const count = items.length + overdue.length;
+    return (
+        <div className="rounded-2xl border border-border-subtle glass p-4 space-y-2">
+            <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-text-primary flex items-center gap-2">
+                    {icon} {title}
+                    <span className="text-xs font-normal text-text-muted">
+                        {date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}
+                    </span>
+                </h3>
+                <span className="text-xs text-text-muted font-mono">{count}</span>
+            </div>
+            {count === 0 ? (
+                <p className="text-xs text-text-muted py-4 text-center">{emptyText}</p>
+            ) : (
+                <ul className="space-y-1">
+                    {overdue.map(card => <AgendaItem key={card._id} card={card} overdue />)}
+                    {items.map(card => <AgendaItem key={card._id} card={card} />)}
+                </ul>
+            )}
+        </div>
+    );
+}
+
+function AgendaItem({ card, overdue }) {
+    return (
+        <li>
+            <Link
+                href={`/boards/${card.boardId}?card=${card._id}`}
+                className={`group flex items-center gap-3 px-3 py-2 rounded-xl border transition-colors ${
+                    overdue ? 'border-red-500/30 bg-red-500/5 hover:bg-red-500/10' : 'border-transparent hover:bg-surface-hover'
+                }`}
+            >
+                <span
+                    style={{ backgroundColor: PRIORITY_DOT[card.priority] ?? '#94a3b8' }}
+                    className="w-2 h-2 rounded-full shrink-0"
+                    title={`${card.priority} priority`}
+                />
+                <div className="min-w-0 flex-1">
+                    <p className="text-sm text-text-primary truncate group-hover:text-accent transition-colors">{card.title}</p>
+                    <p className="text-[11px] text-text-muted truncate">
+                        {overdue && <span className="text-red-400 font-semibold">Overdue · {formatDueDate(card.dueDate)} · </span>}
+                        {card.boardName} › {card.column}
+                        {card.checklist && ` · ${card.checklist.done}/${card.checklist.total}`}
+                    </p>
+                </div>
+                {card.labels?.some(l => /bug|fehler/i.test(l.text)) && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 shrink-0">bug</span>
+                )}
+                {card.assignee && (
+                    <span className="flex items-center gap-1 text-[10px] text-sky-400 shrink-0 max-w-[110px]">
+                        <Bot size={11} className="shrink-0" /><span className="truncate">{card.assignee}</span>
+                    </span>
+                )}
+            </Link>
+        </li>
+    );
+}
+
 function DueSoonCard({ card }) {
     const status = getDueDateStatus(card.dueDate);
     const dateText = formatDueDate(card.dueDate);
@@ -392,7 +496,7 @@ function DueSoonCard({ card }) {
 
     return (
         <Link
-            href={`/boards/${card.boardId?._id}`}
+            href={`/boards/${card.boardId?._id}?card=${card._id}`}
             style={{ borderColor: s.border, backgroundColor: s.bg }}
             className="group flex flex-col gap-2 p-3.5 rounded-xl border transition-all duration-200 hover:scale-[1.02] card-glow"
         >

@@ -26,6 +26,7 @@ export const cardsApi = {
         return request(`/cards${qs ? '?' + qs : ''}`);
     },
     getUpcoming: () => request('/cards/upcoming'),
+    getAgenda: (todayStart) => request(`/cards/agenda?todayStart=${encodeURIComponent(todayStart.toISOString())}`),
     getById: (id) => request(`/cards/${id}`),
     create: (data) => request('/cards', { method: 'POST', body: JSON.stringify(data) }),
     update: (id, d) => request(`/cards/${id}`, { method: 'PATCH', body: JSON.stringify(d) }),

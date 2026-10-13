@@ -6,8 +6,8 @@ const Comment = require('../models/Comment');
 const Workspace = require('../models/Workspace');
 const AgentActivity = require('../models/AgentActivity');
 const PlannerChat = require('../models/PlannerChat');
+const { columnInfoMap } = require('../utils/columns');
 
-const DONE_COLUMN = /done|erledigt|fertig|closed|abgeschlossen|released|shipped/i;
 const BUG = /\b(bug|bugs|fehler|crash|error|defect|hotfix)\b/i;
 const MAX_MESSAGES = 200;
 const DAY_MS = 24 * 3600 * 1000;
@@ -53,17 +53,9 @@ exports.getContext = async (req, res, next) => {
                 .select('agent action cardId detail createdAt').lean(),
         ]);
 
-        // Done = column name matches, otherwise the board's last column
         const columnsByBoard = new Map();
         columns.forEach(c => columnsByBoard.set(String(c.boardId), [...(columnsByBoard.get(String(c.boardId)) || []), c]));
-        const columnInfo = new Map();
-        for (const [boardId, cols] of columnsByBoard) {
-            const anyNamedDone = cols.some(c => DONE_COLUMN.test(c.name));
-            cols.forEach((c, i) => columnInfo.set(String(c._id), {
-                name: c.name, index: i, boardId,
-                done: anyNamedDone ? DONE_COLUMN.test(c.name) : i === cols.length - 1 && cols.length > 1,
-            }));
-        }
+        const columnInfo = columnInfoMap(columns);
         const boardName = new Map(boards.map(b => [String(b._id), b.name]));
 
         const tickets = cards.map(c => {
