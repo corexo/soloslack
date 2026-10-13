@@ -1,3 +1,4 @@
+import { API_BASE } from '@/lib/apiBase';
 /**
  * Token Usage Tracker
  * Persists AI usage records in the backend (MongoDB). localStorage is a
@@ -5,7 +6,7 @@
  */
 
 const STORAGE_KEY = 'notban_ai_usage';
-const USAGE_URL = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/ai/usage`;
+const USAGE_URL = `${API_BASE}/ai/usage`;
 const MAX_RECORDS = 5000; // prevent unbounded growth
 
 function getRecords() {

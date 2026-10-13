@@ -1,4 +1,5 @@
-const BASE = process.env.NEXT_PUBLIC_API_URL;
+import { API_BASE } from '@/lib/apiBase';
+const BASE = API_BASE;
 
 const request = async (url, options = {}) => {
     const res = await fetch(`${BASE}${url}`, {

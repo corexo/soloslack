@@ -1,9 +1,9 @@
 'use client';
+import { API_BASE } from '@/lib/apiBase';
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 
 const SettingsContext = createContext(null);
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 // AI settings live in MongoDB; localStorage is only a cache for instant first paint
 const AI_CACHE_KEY = 'notban_ai_settings';

@@ -1,4 +1,5 @@
 'use client';
+import { API_BASE } from '@/lib/apiBase';
 import { useState, useEffect, useCallback } from 'react';
 import { Sparkles, LayoutDashboard, FileText, Plus, Check } from 'lucide-react';
 import Modal from '../ui/Modal';
@@ -10,7 +11,6 @@ import { organizeWorkspacesPrompt } from '@/lib/ai/prompts';
 import { WORKSPACE_COLOR_MAP } from '@/lib/utils/workspaceColors';
 import { cn } from '@/lib/utils/cn';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 const NEW_PREFIX = 'new:';
 const NEW_COLORS = ['emerald', 'violet', 'amber', 'cyan', 'rose', 'orange', 'teal', 'indigo'];
 

@@ -1,4 +1,5 @@
 'use client';
+import { API_BASE } from '@/lib/apiBase';
 import { useState, useEffect } from 'react';
 import { Bot, Plus, Trash2, RefreshCw, Terminal, AlertCircle } from 'lucide-react';
 import { agentSkillApi, renderAgentPrompt } from '@/lib/api/agentSkillApi';
@@ -6,7 +7,7 @@ import AgentPromptEditor, { CopyTextButton } from './AgentPromptEditor';
 import { agentsApi } from '@/lib/api/agentsApi';
 import { timeAgo } from '@/lib/utils/formatDate';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const API_URL = API_BASE;
 
 // Lives inside the settings <form>: every button is type="button" and Enter is swallowed
 export default function AgentsSection() {

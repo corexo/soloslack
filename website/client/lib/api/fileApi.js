@@ -1,4 +1,5 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+import { API_BASE } from '@/lib/apiBase';
+const API_BASE_URL = API_BASE;
 
 export const fileApi = {
     async uploadFile(file, workspaceId = null, noteId = null) {

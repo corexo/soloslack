@@ -1,4 +1,5 @@
 'use client';
+import { API_BASE } from '@/lib/apiBase';
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useSettings } from './SettingsContext';
 import { callProvider, streamProvider, getEmbedding, validateKey } from '@/lib/ai/providers';
@@ -11,7 +12,7 @@ const RATE_LIMIT = 10;
 const RATE_WINDOW_MS = 60_000;
 
 // Backend proxy for custom endpoints that don't allow browser CORS
-const AI_PROXY_URL = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/ai/proxy`;
+const AI_PROXY_URL = `${API_BASE}/ai/proxy`;
 
 export function AIProvider({ children }) {
     const {

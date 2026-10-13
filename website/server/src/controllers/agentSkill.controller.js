@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const AppDocument = require('../models/AppDocument');
 
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '0.0.0.0']);
 const KEY = 'agent-skill';
 const PROMPT_KEY = 'agent-prompt';
 const DEFAULT_SKILL = fs.readFileSync(path.join(__dirname, '../assets/agent-skill.md'), 'utf8');
@@ -10,7 +11,16 @@ const DEFAULT_PROMPT = fs.readFileSync(path.join(__dirname, '../assets/agent-pro
 // URLs as the caller reaches them (agents and browser share the host machine)
 const urlsFor = (req) => {
     const api = process.env.PUBLIC_API_URL || `${req.protocol}://${req.get('host')}/api`;
-    const web = process.env.PUBLIC_WEB_URL || api.replace(/\/api$/, '');
+    let web = process.env.PUBLIC_WEB_URL || api.replace(/\/api$/, '');
+    // Requested from another device: point the web link at the same host instead of localhost
+    try {
+        const webUrl = new URL(web);
+        const host = req.hostname;
+        if (LOCAL_HOSTS.has(webUrl.hostname) && host && !LOCAL_HOSTS.has(host)) {
+            webUrl.hostname = host;
+            web = webUrl.toString().replace(/\/$/, '');
+        }
+    } catch { /* keep configured value */ }
     return { api, web };
 };
 

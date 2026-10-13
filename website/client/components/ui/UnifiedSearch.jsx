@@ -1,4 +1,5 @@
 'use client';
+import { API_BASE } from '@/lib/apiBase';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, FileText, LayoutDashboard, X, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -76,7 +77,7 @@ export default function UnifiedSearch({ isOpen, onClose }) {
         const timer = setTimeout(async () => {
             setLoading(true);
             try {
-                const base = process.env.NEXT_PUBLIC_API_URL;
+                const base = API_BASE;
                 const res = await fetch(`${base}/search?q=${encodeURIComponent(query.trim())}`);
                 const data = await res.json();
                 if (data.success) {

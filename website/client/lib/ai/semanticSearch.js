@@ -1,7 +1,7 @@
+import { API_BASE } from '@/lib/apiBase';
 import { cosineSimilarity } from './providers';
 import { cacheKey, getCached, putCached } from './embeddingCache';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 const BATCH_SIZE = 32;
 const MIN_SCORE = 0.3;
 // Embedding models differ in their score range (nomic rarely goes below 0.4),
