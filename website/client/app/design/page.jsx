@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Palette } from 'lucide-react';
+import { Palette, ScanSearch, Sparkles, GitBranch, FolderOpen, Loader2 } from 'lucide-react';
 import { designApi } from '@/lib/api/designApi';
 import { useWorkspaces } from '@/context/WorkspacesContext';
 import { useUndo } from '@/context/UndoContext';
@@ -9,6 +9,10 @@ import DesignBookSidebar from '@/components/design/DesignBookSidebar';
 import EntryDetailView from '@/components/design/EntryDetailView';
 import EntryEditor from '@/components/design/EntryEditor';
 import { ENTRY_TYPES } from '@/components/design/entryTypes';
+import DescribeWithAIModal from '@/components/design/DescribeWithAIModal';
+import { gitApi } from '@/lib/api/gitApi';
+import { useAI } from '@/context/AIContext';
+import { timeAgo } from '@/lib/utils/formatDate';
 
 const byOrder = (a, b) => (a.order ?? 0) - (b.order ?? 0);
 
@@ -26,11 +30,33 @@ export default function DesignPage() {
     const [editing, setEditing] = useState(false);
     const [saving, setSaving] = useState(false);
     const [confirmDeleteEntry, setConfirmDeleteEntry] = useState(null);
+    // null = workspace book (filtered by the active workspace), otherwise a git repo's book
+    const [repo, setRepo] = useState(null);
+    const [repos, setRepos] = useState([]);
+    const [scanInfo, setScanInfo] = useState(null);
+    const [scanning, setScanning] = useState(false);
+    const [describeOpen, setDescribeOpen] = useState(false);
+    const { isConfigured: aiConfigured } = useAI();
+
+    // ?repo=<name> deep link (e.g. from a board header)
+    useEffect(() => {
+        const fromUrl = new URLSearchParams(window.location.search).get('repo');
+        if (fromUrl) setRepo(fromUrl);
+        gitApi.getRepos().then(res => setRepos(res.data)).catch(() => setRepos([]));
+    }, []);
+
+    useEffect(() => {
+        if (!repo) { setScanInfo(null); return; }
+        designApi.getScanInfo(repo).then(res => setScanInfo(res.data)).catch(() => setScanInfo(null));
+        const url = new URL(window.location.href);
+        url.searchParams.set('repo', repo);
+        window.history.replaceState(null, '', url);
+    }, [repo]);
 
     const fetchBook = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await designApi.getDesignBook(activeWorkspaceId ?? null);
+            const res = await designApi.getDesignBook(activeWorkspaceId ?? null, repo);
             const payload = res?.data ?? res;
             setChapters([...(payload?.chapters ?? [])].sort(byOrder));
             setEntries([...(payload?.entries ?? [])].sort(byOrder));
@@ -40,7 +66,7 @@ export default function DesignPage() {
         } finally {
             setLoading(false);
         }
-    }, [activeWorkspaceId, showToast]);
+    }, [activeWorkspaceId, repo, showToast]);
 
     useEffect(() => {
         fetchWorkspaces();
@@ -73,7 +99,7 @@ export default function DesignPage() {
         const optimistic = { _id: tempId, workspaceId: activeWorkspaceId ?? undefined, title, order: chapters.length };
         setChapters(prev => [...prev, optimistic]);
         try {
-            const res = await designApi.createChapter({ workspaceId: activeWorkspaceId ?? undefined, title });
+            const res = await designApi.createChapter({ workspaceId: activeWorkspaceId ?? undefined, repo: repo ?? undefined, title });
             const created = res?.data ?? res;
             setChapters(prev => prev.map(c => (c._id === tempId ? created : c)));
             return created;
@@ -148,6 +174,7 @@ export default function DesignPage() {
         try {
             const res = await designApi.createEntry({
                 workspaceId: activeWorkspaceId ?? undefined,
+                repo: repo ?? undefined,
                 chapterId: targetChapterId,
                 type,
                 title: meta.defaultTitle,
@@ -259,6 +286,33 @@ export default function DesignPage() {
         });
     };
 
+    const handleScan = async () => {
+        if (!repo) return;
+        setScanning(true);
+        try {
+            const res = await designApi.scanRepo(repo);
+            setScanInfo(res.data);
+            const { created, updated, missing } = res.data;
+            showToast({ label: `Scan done: ${created} new, ${updated} updated${missing ? `, ${missing} no longer in repo` : ''}`, type: 'success' });
+            fetchBook();
+        } catch (err) {
+            showToast({ label: 'Scan failed: ' + err.message, type: 'error' });
+        } finally {
+            setScanning(false);
+        }
+    };
+
+    const handleApplyDescriptions = async (accepted) => {
+        for (const p of accepted) {
+            const data = { ...p.entry.data, description: p.description, descriptionSource: 'ai' };
+            if (p.entry.type === 'component' && p.variants.length && !p.entry.data.variants?.length) data.variants = p.variants;
+            const res = await designApi.updateEntry(p.entry._id, { data });
+            const updated = res?.data ?? res;
+            setEntries(prev => prev.map(e => (e._id === p.entry._id ? { ...e, ...updated } : e)));
+        }
+        showToast({ label: `${accepted.length} description${accepted.length !== 1 ? 's' : ''} saved`, type: 'success' });
+    };
+
     const handleSelectEntry = (id) => {
         setActiveEntryId(id);
         setEditing(false);
@@ -267,7 +321,49 @@ export default function DesignPage() {
     const hasContent = chapters.length > 0 || entries.length > 0;
 
     return (
-        <div className="flex h-full overflow-hidden">
+        <div className="flex flex-col h-full overflow-hidden">
+            {/* Book source: workspace book or a git repo's book (scannable) */}
+            <div className="h-12 shrink-0 border-b border-border-subtle px-4 flex items-center gap-3 bg-surface-raised/20">
+                <Palette className="w-4 h-4 text-accent shrink-0" />
+                <select
+                    value={repo || ''}
+                    onChange={(e) => { setRepo(e.target.value || null); setActiveEntryId(null); setEditing(false); }}
+                    className="bg-surface-overlay border border-border-subtle rounded-md px-2 py-1 text-xs text-text-primary outline-none max-w-[260px]"
+                    title="Design book source"
+                >
+                    <option value="">Workspace book (manual)</option>
+                    {repos.map(r => <option key={r} value={r}>Repo: {r}</option>)}
+                </select>
+                {repo ? (
+                    <>
+                        <span className="text-[11px] text-text-muted truncate hidden md:inline">
+                            {scanInfo
+                                ? `${scanInfo.framework?.name}${scanInfo.framework?.tailwind ? ' + Tailwind' : ''} · ${scanInfo.totals.components} components · ${scanInfo.totals.screens} screens · ${scanInfo.totals.colors} colors · scanned ${timeAgo(scanInfo.scannedAt)}`
+                                : 'Not scanned yet'}
+                        </span>
+                        <div className="ml-auto flex items-center gap-2">
+                            {aiConfigured && entries.some(e => e.type === 'component' || e.type === 'screen') && (
+                                <button onClick={() => setDescribeOpen(true)}
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-purple-300 bg-purple-500/10 border border-purple-500/20 hover:bg-purple-500/20">
+                                    <Sparkles className="w-3.5 h-3.5" /> Describe with AI
+                                </button>
+                            )}
+                            <button onClick={handleScan} disabled={scanning}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold text-white bg-accent hover:bg-accent-hover disabled:opacity-50">
+                                {scanning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ScanSearch className="w-3.5 h-3.5" />}
+                                {scanInfo ? 'Rescan repo' : 'Scan repo'}
+                            </button>
+                        </div>
+                    </>
+                ) : (
+                    <span className="text-[11px] text-text-muted flex items-center gap-1">
+                        <FolderOpen className="w-3.5 h-3.5" /> Filtered by the active workspace · pick a repo to generate a book from code
+                        <GitBranch className="w-3.5 h-3.5 ml-1" />
+                    </span>
+                )}
+            </div>
+
+            <div className="flex flex-1 overflow-hidden">
             <div className="shrink-0">
                 <DesignBookSidebar
                     chapters={sortedChapters}
@@ -280,6 +376,7 @@ export default function DesignPage() {
                     onDeleteChapter={handleDeleteChapter}
                     onCreateEntry={handleCreateEntry}
                     onMoveEntry={handleMoveEntry}
+                    showWorkspaceFilter={!repo}
                 />
             </div>
 
@@ -289,7 +386,7 @@ export default function DesignPage() {
                         <EntryEditor
                             key={activeEntry._id}
                             entry={activeEntry}
-                            workspaceId={activeWorkspaceId ?? activeEntry.workspaceId}
+                            repo={repo}
                             saving={saving}
                             onSave={handleSaveEntry}
                             onCancel={() => setEditing(false)}
@@ -318,7 +415,14 @@ export default function DesignPage() {
                 ) : (
                     <div className="h-full flex flex-col items-center justify-center text-text-muted space-y-4 p-8">
                         <Palette className="w-16 h-16 opacity-20" />
-                        <h2 className="text-xl font-bold text-text-primary">Design Book</h2>
+                        <h2 className="text-xl font-bold text-text-primary">Design Book{repo ? ` · ${repo}` : ''}</h2>
+                        {repo && (
+                            <button onClick={handleScan} disabled={scanning}
+                                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-accent text-white text-sm font-semibold disabled:opacity-50">
+                                {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <ScanSearch className="w-4 h-4" />}
+                                Scan {repo} for tokens, components and screens
+                            </button>
+                        )}
                         <p className="text-sm text-text-secondary max-w-md text-center leading-relaxed">
                             A living style guide for your workspace. Organize chapters with galleries
                             (screenshots &amp; mockups), design tokens (colors, typography, spacing),
@@ -330,6 +434,16 @@ export default function DesignPage() {
                     </div>
                 )}
             </div>
+
+            </div>
+
+            <DescribeWithAIModal
+                isOpen={describeOpen}
+                onClose={() => setDescribeOpen(false)}
+                entries={entries}
+                framework={scanInfo?.framework?.name}
+                onApply={handleApplyDescriptions}
+            />
 
             <ConfirmModal
                 isOpen={!!confirmDeleteEntry}

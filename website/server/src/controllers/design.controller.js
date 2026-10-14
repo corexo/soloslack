@@ -1,16 +1,17 @@
 const DesignChapter = require('../models/DesignChapter');
 const DesignEntry = require('../models/DesignEntry');
 
-const ENTRY_TYPES = ['gallery', 'tokens', 'snippet', 'doc'];
+const ENTRY_TYPES = ['gallery', 'tokens', 'snippet', 'doc', 'component', 'screen'];
 
 // @desc    Get all design book chapters and entries
 // @route   GET /api/design
 exports.getDesignBook = async (req, res, next) => {
     try {
-        const { workspaceId } = req.query;
-        const query = {};
+        const { workspaceId, repo } = req.query;
+        // Repo books and workspace books are separate
+        const query = { repo: repo || null };
 
-        if (workspaceId) {
+        if (!repo && workspaceId) {
             const wsVal = (workspaceId === 'none' || workspaceId === 'null') ? null : workspaceId;
             query.workspaceId = wsVal;
         }
@@ -30,9 +31,9 @@ exports.getDesignBook = async (req, res, next) => {
 // @route   POST /api/design/chapters
 exports.createChapter = async (req, res, next) => {
     try {
-        const { workspaceId, title } = req.body;
+        const { workspaceId, repo, title } = req.body;
 
-        const chapter = await DesignChapter.create({ workspaceId: workspaceId || null, title });
+        const chapter = await DesignChapter.create({ workspaceId: repo ? null : workspaceId || null, repo: repo || null, title });
 
         res.status(201).json({ success: true, data: chapter });
     } catch (error) {
@@ -91,16 +92,17 @@ exports.deleteChapter = async (req, res, next) => {
 // @route   POST /api/design/entries
 exports.createEntry = async (req, res, next) => {
     try {
-        const { workspaceId, chapterId, type, title, data } = req.body;
+        const { workspaceId, repo, chapterId, type, title, data } = req.body;
 
         if (!ENTRY_TYPES.includes(type)) {
-            const error = new Error('Invalid type — must be one of: gallery, tokens, snippet, doc');
+            const error = new Error(`Invalid type — must be one of: ${ENTRY_TYPES.join(', ')}`);
             error.statusCode = 400;
             throw error;
         }
 
         const entry = await DesignEntry.create({
-            workspaceId: workspaceId || null,
+            workspaceId: repo ? null : workspaceId || null,
+            repo: repo || null,
             chapterId: chapterId || null,
             type,
             title,

@@ -17,9 +17,24 @@ const request = async (url, options = {}) => {
 };
 
 export const designApi = {
-    getDesignBook: (workspaceId = null) => {
-        const qs = workspaceId ? `?workspaceId=${encodeURIComponent(workspaceId)}` : '';
+    // Either a workspace book (workspaceId, null = all) or a repo book (repo)
+    getDesignBook: (workspaceId = null, repo = null) => {
+        const qs = repo
+            ? `?repo=${encodeURIComponent(repo)}`
+            : workspaceId ? `?workspaceId=${encodeURIComponent(workspaceId)}` : '';
         return request(`/design${qs}`);
+    },
+    scanRepo: (repo) => request('/design/scan', { method: 'POST', body: JSON.stringify({ repo }) }),
+    getScanInfo: (repo) => request(`/design/scan?repo=${encodeURIComponent(repo)}`),
+    // Images go to the local uploads volume; returns [{ _id, name, url (origin-relative) }]
+    uploadAssets: async (files, repo = null) => {
+        const form = new FormData();
+        files.forEach(f => form.append('files', f, f.name));
+        if (repo) form.append('repo', repo);
+        const res = await fetch(`${BASE}/design/assets`, { method: 'POST', body: form });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Upload failed');
+        return data;
     },
     createChapter: (data) => request('/design/chapters', { method: 'POST', body: JSON.stringify(data) }),
     updateChapter: (id, data) => request(`/design/chapters/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),

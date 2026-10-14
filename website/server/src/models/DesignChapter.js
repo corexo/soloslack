@@ -7,6 +7,16 @@ const designChapterSchema = new mongoose.Schema(
             ref: 'Workspace',
             default: null,
         },
+        // Design book of a git repo (directory under REPOS_DIR); null = workspace book
+        repo: {
+            type: String,
+            default: null,
+        },
+        // Set on chapters created by a repo scan, so a rescan finds them again
+        scanKey: {
+            type: String,
+            default: null,
+        },
         title: {
             type: String,
             default: '',

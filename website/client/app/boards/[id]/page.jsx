@@ -14,7 +14,7 @@ import WorkspacePicker from '@/components/workspaces/WorkspacePicker';
 import WorkflowSuggestions from '@/components/ai/WorkflowSuggestions';
 import { useAI } from '@/context/AIContext';
 import { exportBoardToJson, exportBoardToCsv } from '@/lib/utils/exportUtils';
-import { Download, Upload, Plus, AlertCircle, LayoutDashboard, CalendarDays, CheckSquare, X, Trash2, Archive, ArrowRight, FileJson, FileSpreadsheet, Sparkles, GitFork } from 'lucide-react';
+import { Download, Upload, Plus, AlertCircle, LayoutDashboard, CalendarDays, CheckSquare, X, Trash2, Archive, ArrowRight, FileJson, FileSpreadsheet, Sparkles, GitFork, Palette } from 'lucide-react';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import { useUndo } from '@/context/UndoContext';
 import { cn } from '@/lib/utils/cn';
@@ -283,6 +283,15 @@ export default function BoardViewPage() {
                             .catch(err => showToast({ label: 'Could not link repo: ' + err.message, type: 'error' }))}
                     />
 
+                    {activeBoard.board.gitRepo && (
+                        <Link
+                            href={`/design?repo=${encodeURIComponent(activeBoard.board.gitRepo)}`}
+                            className="p-1.5 rounded-md text-text-secondary hover:text-accent hover:bg-surface-hover transition-colors"
+                            title="Design book of this repo"
+                        >
+                            <Palette className="w-4 h-4" />
+                        </Link>
+                    )}
                     {activeBoard.board.gitRepo && (
                         <Link
                             href={`/boards/${id}/branches`}

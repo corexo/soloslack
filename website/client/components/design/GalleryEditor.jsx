@@ -1,12 +1,14 @@
 'use client';
 import { useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, ImagePlus, Loader2, Plus, Trash2 } from 'lucide-react';
-import { fileApi } from '@/lib/api/fileApi';
+import { designApi } from '@/lib/api/designApi';
+import { resolveAssetUrl } from '@/lib/apiBase';
 import { useUndo } from '@/context/UndoContext';
 
 const inputClass = 'w-full bg-surface-overlay border border-border-subtle rounded-md px-2 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent/60 transition-colors';
 
-export default function GalleryEditor({ data, onChange, workspaceId }) {
+// Uploads go to the local uploads volume (works without cloud storage); `repo` only tags them
+export default function GalleryEditor({ data, onChange, repo = null }) {
     const { showToast } = useUndo();
     const fileInputRef = useRef(null);
     const [uploading, setUploading] = useState(false);
@@ -17,16 +19,14 @@ export default function GalleryEditor({ data, onChange, workspaceId }) {
     const setItems = (next) => onChange({ ...data, items: next });
 
     const handleUpload = async (e) => {
-        const file = e.target.files?.[0];
+        const files = Array.from(e.target.files || []);
         e.target.value = ''; // allow re-selecting the same file
-        if (!file) return;
+        if (!files.length) return;
 
         setUploading(true);
         try {
-            const res = await fileApi.uploadFile(file, workspaceId ?? undefined);
-            const url = res?.file?.url ?? res?.url;
-            if (!url) throw new Error('Upload response contained no file URL');
-            setItems([...items, { url, caption: '' }]);
+            const res = await designApi.uploadAssets(files, repo);
+            setItems([...items, ...res.data.map(a => ({ url: a.url, caption: '' }))]);
         } catch (err) {
             showToast({ label: 'Upload failed: ' + err.message, type: 'error' });
         } finally {
@@ -92,6 +92,7 @@ export default function GalleryEditor({ data, onChange, workspaceId }) {
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
+                    multiple
                     onChange={handleUpload}
                     className="hidden"
                 />
@@ -111,7 +112,7 @@ export default function GalleryEditor({ data, onChange, workspaceId }) {
                         >
                             <div className="w-14 h-14 rounded-lg overflow-hidden border border-border-subtle bg-surface-raised shrink-0 flex items-center justify-center">
                                 {item.url ? (
-                                    <img src={item.url} alt="" className="w-full h-full object-cover" />
+                                    <img src={resolveAssetUrl(item.url)} alt="" className="w-full h-full object-cover" />
                                 ) : (
                                     <span className="text-[10px] text-text-muted">no url</span>
                                 )}

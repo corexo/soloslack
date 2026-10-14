@@ -22,3 +22,12 @@ function resolveApiBase() {
 }
 
 export const API_BASE = resolveApiBase();
+
+/**
+ * Uploaded files are stored with origin-relative URLs ("/api/attachments/…/raw") so they work
+ * from every device; prefix them with the API origin when rendering.
+ */
+export function resolveAssetUrl(url) {
+    if (!url || !url.startsWith('/api/')) return url;
+    return `${API_BASE.replace(/\/api$/, '')}${url}`;
+}

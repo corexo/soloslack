@@ -368,3 +368,31 @@ export function parsePlannerReply(text) {
         return { content: `${content}\n\n_(The suggested actions could not be read.)_`, actions: [] };
     }
 }
+
+// ── Design book ──────────────────────────────────────────────────
+
+/**
+ * Describe scanned components/screens for the design book.
+ * items: [{ ref, type: 'component'|'screen', name, path, route?, props?, snippet? }]
+ */
+export function designDescribePrompt(items, framework) {
+    const list = items.map(i => [
+        `### ${i.ref} — ${i.type} "${i.name}"`,
+        i.route && `route: ${i.route}`,
+        `file: ${i.path}`,
+        i.props?.length && `props: ${i.props.join(', ')}`,
+        i.snippet && `code:\n${i.snippet.slice(0, 1800)}`,
+    ].filter(Boolean).join('\n')).join('\n\n');
+
+    return [
+        {
+            role: 'system',
+            content: `You document a ${framework || 'frontend'} project's UI for its design book (like Storybook docs).
+For every item write a short markdown description (2-4 sentences): what it is, when/where it is used and notable behaviour.
+For components also list likely variants/states (e.g. "primary", "disabled", "loading") derived from props and code — at most 6, empty if unclear.
+Write in German. Only describe what the code shows; no invented features.
+Return ONLY JSON: [{"ref": "D1", "description": "...", "variants": ["..."]}]`,
+        },
+        { role: 'user', content: list },
+    ];
+}

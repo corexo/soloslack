@@ -31,6 +31,7 @@ function ColorSwatch({ color, onCopy }) {
                 <Copy className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity" />
                 <span className="truncate">{color.value || '—'}</span>
             </p>
+            {color.source && <p className="text-[10px] text-text-muted/60 truncate mt-0.5" title={color.source}>{color.source}</p>}
         </button>
     );
 }
@@ -79,7 +80,10 @@ export default function TokensView({ data }) {
     const typography = Array.isArray(data?.typography) ? data.typography : [];
     const spacing = Array.isArray(data?.spacing) ? data.spacing : [];
 
-    if (colors.length === 0 && typography.length === 0 && spacing.length === 0) {
+    const radii = Array.isArray(data?.radii) ? data.radii : [];
+    const shadows = Array.isArray(data?.shadows) ? data.shadows : [];
+
+    if (colors.length === 0 && typography.length === 0 && spacing.length === 0 && radii.length === 0 && shadows.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center py-16 text-text-muted space-y-3">
                 <Shapes className="w-10 h-10 opacity-30" />
@@ -131,6 +135,38 @@ export default function TokensView({ data }) {
                     <div className="divide-y divide-border-subtle/60">
                         {spacing.map((s, i) => (
                             <SpacingBar key={i} s={s} maxValue={maxSpacing} />
+                        ))}
+                    </div>
+                </section>
+            )}
+
+            {radii.length > 0 && (
+                <section>
+                    <SectionHeading label="Radii" count={radii.length} />
+                    <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+                        {radii.map((r, i) => (
+                            <button key={i} onClick={() => handleCopy(r.value)} title={`Copy ${r.value}`}
+                                className="p-3 rounded-xl border border-border-subtle bg-surface-overlay hover:border-accent/40 transition-all text-left">
+                                <div className="h-12 w-12 mb-2 border-2 border-accent/60 bg-accent/10" style={{ borderRadius: r.value }} />
+                                <p className="text-xs font-medium text-text-primary truncate">{r.name}</p>
+                                <p className="text-[11px] font-mono text-text-muted truncate">{r.value}</p>
+                            </button>
+                        ))}
+                    </div>
+                </section>
+            )}
+
+            {shadows.length > 0 && (
+                <section>
+                    <SectionHeading label="Shadows" count={shadows.length} />
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                        {shadows.map((s, i) => (
+                            <button key={i} onClick={() => handleCopy(s.value)} title={`Copy ${s.value}`}
+                                className="p-4 rounded-xl border border-border-subtle bg-surface-overlay hover:border-accent/40 transition-all text-left">
+                                <div className="h-12 rounded-lg bg-surface-raised mb-3" style={{ boxShadow: s.value }} />
+                                <p className="text-xs font-medium text-text-primary truncate">{s.name}</p>
+                                <p className="text-[10px] font-mono text-text-muted line-clamp-2">{s.value}</p>
+                            </button>
                         ))}
                     </div>
                 </section>

@@ -137,4 +137,4 @@ async function getGraph(name, limit = 150) {
     return { repo: name, base, current, branches: stats, commits, truncated: commits.length >= limit };
 }
 
-module.exports = { listRepos, listBranches, createBranch, getGraph, REPOS_DIR };
+module.exports = { listRepos, listBranches, createBranch, getGraph, repoPath, REPOS_DIR };

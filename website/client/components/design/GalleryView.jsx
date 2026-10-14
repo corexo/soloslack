@@ -1,4 +1,5 @@
 'use client';
+import { resolveAssetUrl } from '@/lib/apiBase';
 import { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, X, Images } from 'lucide-react';
 
@@ -27,7 +28,7 @@ function Lightbox({ items, index, onClose, onNavigate }) {
             </button>
 
             <img
-                src={item.url}
+                src={resolveAssetUrl(item.url)}
                 alt={item.caption || 'Gallery image'}
                 className="max-w-[92vw] max-h-[78vh] object-contain rounded-lg shadow-2xl select-none"
                 draggable={false}
@@ -101,7 +102,7 @@ export default function GalleryView({ data }) {
                     >
                         <div className="aspect-[4/3] overflow-hidden">
                             <img
-                                src={item.url}
+                                src={resolveAssetUrl(item.url)}
                                 alt={item.caption || `Gallery image ${i + 1}`}
                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                 loading="lazy"

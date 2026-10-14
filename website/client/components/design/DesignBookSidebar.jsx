@@ -198,6 +198,7 @@ export default function DesignBookSidebar({
     onDeleteChapter,
     onCreateEntry,
     onMoveEntry,
+    showWorkspaceFilter = true,
 }) {
     const { workspaces, activeWorkspaceId, setActiveWorkspaceId, fetchWorkspaces } = useWorkspaces();
 
@@ -272,7 +273,7 @@ export default function DesignBookSidebar({
             </div>
 
             {/* Workspace filter — same pattern as the notes list */}
-            {workspaces.length > 0 && (
+            {showWorkspaceFilter && workspaces.length > 0 && (
                 <div className="px-3 py-1.5 border-b border-border-subtle">
                     <select
                         value={activeWorkspaceId ?? ''}

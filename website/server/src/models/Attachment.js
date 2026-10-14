@@ -3,7 +3,9 @@ const mongoose = require('mongoose');
 // File stored on the local uploads volume, attached to a card (and optionally a comment)
 const attachmentSchema = new mongoose.Schema(
     {
-        cardId: { type: mongoose.Schema.Types.ObjectId, ref: 'Card', required: true },
+        // Card attachments have cardId; design book assets (scope 'design') have none
+        cardId: { type: mongoose.Schema.Types.ObjectId, ref: 'Card', default: null },
+        scope: { type: String, enum: ['card', 'design'], default: 'card' },
         commentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Comment', default: null },
         name: { type: String, required: true, trim: true },
         mimeType: { type: String, required: true },

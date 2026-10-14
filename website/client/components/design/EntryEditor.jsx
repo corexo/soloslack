@@ -6,9 +6,10 @@ import GalleryEditor from './GalleryEditor';
 import TokensEditor from './TokensEditor';
 import SnippetEditor from './SnippetEditor';
 import DocEditor from './DocEditor';
+import ComponentEditor from './ComponentEditor';
 
 // Edit mode for one entry: title + type-specific editor + save/cancel
-export default function EntryEditor({ entry, workspaceId, saving = false, onSave, onCancel }) {
+export default function EntryEditor({ entry, repo = null, saving = false, onSave, onCancel }) {
     const [title, setTitle] = useState(entry?.title ?? '');
     const [data, setData] = useState(() => normalizeEntryData(entry?.type, entry?.data));
 
@@ -18,13 +19,16 @@ export default function EntryEditor({ entry, workspaceId, saving = false, onSave
     const renderTypeEditor = () => {
         switch (entry?.type) {
             case 'gallery':
-                return <GalleryEditor data={data} onChange={setData} workspaceId={workspaceId} />;
+                return <GalleryEditor data={data} onChange={setData} repo={repo} />;
             case 'tokens':
                 return <TokensEditor data={data} onChange={setData} />;
             case 'snippet':
                 return <SnippetEditor data={data} onChange={setData} />;
             case 'doc':
                 return <DocEditor data={data} onChange={setData} />;
+            case 'component':
+            case 'screen':
+                return <ComponentEditor type={entry.type} data={data} onChange={setData} repo={repo} />;
             default:
                 return null;
         }
